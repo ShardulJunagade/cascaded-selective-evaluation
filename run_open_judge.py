@@ -86,18 +86,21 @@ if __name__ == "__main__":
     print(f"Label token ids: {judge.label_token_ids}")
 
     n_dropped = 0
-    for start in tqdm(range(0, len(samples), args.chunk_size), desc="scoring"):
-        chunk = samples[start:start + args.chunk_size]
-        probs_list = judge.simulate_annotators_batch(chunk, fewshot_examples_list)
+    try:
+        for start in tqdm(range(0, len(samples), args.chunk_size), desc="scoring"):
+            chunk = samples[start:start + args.chunk_size]
+            probs_list = judge.simulate_annotators_batch(chunk, fewshot_examples_list)
 
-        scored = []
-        for sample, probs in zip(chunk, probs_list):
-            if probs == [] or np.sum(np.isnan(probs)) > 0:
-                n_dropped += 1
-                continue
-            sample["probs"] = probs
-            scored.append(sample)
+            scored = []
+            for sample, probs in zip(chunk, probs_list):
+                if probs == [] or np.sum(np.isnan(probs)) > 0:
+                    n_dropped += 1
+                    continue
+                sample["probs"] = probs
+                scored.append(sample)
 
-        write_jsonl(scored, args.out_filename, mode="a")
+            write_jsonl(scored, args.out_filename, mode="a")
+    finally:
+        judge.shutdown()
 
     print(f"Done. Dropped {n_dropped}/{len(samples)} samples with no usable label logprobs.")
