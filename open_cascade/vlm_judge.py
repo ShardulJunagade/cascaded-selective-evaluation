@@ -59,6 +59,20 @@ class OpenVLMJudge:
         self.tokenizer = getattr(self.processor, "tokenizer", self.processor)
         self.label_token_ids = self._resolve_label_token_ids()
 
+    def shutdown(self) -> None:
+        """Best-effort vLLM cleanup before Python's multiprocessing atexit hook runs."""
+        llm_engine = getattr(self.llm, "llm_engine", None)
+        for target in (llm_engine, getattr(llm_engine, "engine_core", None), self.llm):
+            shutdown = getattr(target, "shutdown", None)
+            if shutdown is None:
+                continue
+            try:
+                shutdown()
+                break
+            except TypeError:
+                shutdown(timeout=0)
+                break
+
     def _encode(self, text: str) -> List[int]:
         return self.tokenizer.encode(text, add_special_tokens=False)
 
