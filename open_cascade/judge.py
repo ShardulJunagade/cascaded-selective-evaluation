@@ -54,13 +54,15 @@ ORDERING_CONVERTERS = ({"A": 1, "B": 2}, {"B": 1, "A": 2})
 class OpenJudge:
     """An open-weight LLM judge scored via teacher-forced label logprobs."""
 
-    def __init__(self, model_name: str, enable_prefix_caching: bool = True):
+    def __init__(self, model_name: str, enable_prefix_caching: bool = True,
+                 released_mistral_compat: bool = False):
         logging.getLogger("vllm").setLevel(logging.WARNING)
 
         from vllm import LLM  # imported here so the module is importable without a GPU
 
         self.model_name = model_name
         self.config = resolve_judge(model_name)
+        self.released_mistral_compat = released_mistral_compat
 
         llm_kwargs = dict(
             model=self.config.hf_name,
@@ -103,8 +105,9 @@ class OpenJudge:
         """Render one user turn, open the assistant turn, seed it with "[[".."""
         if any(model in self.config.hf_name for model in ("Mistral", "Mixtral")):
             messages = [{"role": "user", "content": user_content}]
-            return self.tokenizer.apply_chat_template(
-                messages, tokenize=False, add_generation_prompt=False) + ASSISTANT_PREFIX
+            rendered = self.tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=False)
+            return rendered if self.released_mistral_compat else rendered + ASSISTANT_PREFIX
 
         messages = [
             {"role": "system", "content": system_prompt},
@@ -173,6 +176,12 @@ class OpenJudge:
     # ------------------------------------------------------------------ #
     # scoring
     # ------------------------------------------------------------------ #
+    def _generate_released_compat(self, prompts: List[str]):
+        from vllm import SamplingParams
+
+        sampling_params = SamplingParams(n=1, temperature=0, max_tokens=5, logprobs=5)
+        return self.llm.generate(prompts, sampling_params, use_tqdm=False)
+
     def _generate(self, token_id_lists: List[List[int]]):
         from vllm import SamplingParams
 
@@ -217,6 +226,56 @@ class OpenJudge:
 
         return scored
 
+    def build_released_compat_prompt(self, instruction: str, assistant_a: str,
+                                     assistant_b: str, fewshot_examples: List[Dict]) -> str:
+        prompt = fewshot_inst_prompt
+
+        for example in fewshot_examples:
+            preferred_response = "[[A]]" if example["preferences"]["human"] == 1 else "[[B]]"
+            prompt += "\n" + fewshot_example_prompt.format(
+                instruction=example["instruction"],
+                assistant_a=example["outputs"][0],
+                assistant_b=example["outputs"][1],
+                preferred_response=preferred_response,
+            )
+
+        prompt += "\n" + fewshot_query_prompt.format(
+            instruction=instruction, assistant_a=assistant_a, assistant_b=assistant_b)
+
+        return self._render(prompt)
+
+    def score_released_compat_prompts(self, prompts: List[str]) -> List[Optional[Dict[str, float]]]:
+        """Reproduce the released Mistral scoring path for validation only."""
+        scored: List[Optional[Dict[str, float]]] = []
+
+        for output in self._generate_released_compat(prompts):
+            completion = output.outputs[0]
+            generation = completion.text.strip()
+            if generation not in ("[[A]]", "[[B]]"):
+                scored.append(None)
+                continue
+
+            result_logprobs = {"A": -math.inf, "B": -math.inf}
+            token_list = [self.tokenizer.decode(token_id) for token_id in completion.token_ids]
+            for idx, token in enumerate(token_list):
+                if idx > 0 and "[[" in token_list[idx - 1] and ("A" in token or "B" in token):
+                    top_logprobs = completion.logprobs[idx]
+                    for label, token_id in self.label_token_ids.items():
+                        if token_id in top_logprobs:
+                            result_logprobs[label] = top_logprobs[token_id].logprob
+                    break
+
+            if math.isinf(result_logprobs["A"]) and math.isinf(result_logprobs["B"]):
+                scored.append(None)
+                continue
+
+            scored.append({
+                label: math.exp(logprob)
+                for label, logprob in result_logprobs.items()
+            })
+
+        return scored
+
     def simulate_annotators(self, sample: Dict,
                             fewshot_examples_list: List[List[Dict]]) -> List[float]:
         """Confidence for a single sample. Same signature as the authors' implementation."""
@@ -232,6 +291,9 @@ class OpenJudge:
         Returns `[P(preference=1), P(preference=2)]` per sample, or `[]` if every simulation
         for that sample failed to produce a usable label.
         """
+        if self.released_mistral_compat:
+            return self.simulate_annotators_batch_released_compat(samples, fewshot_examples_list)
+
         token_id_lists: List[List[int]] = []
         provenance: List[tuple] = []  # (sample index, ordering index)
 
@@ -246,6 +308,42 @@ class OpenJudge:
         scored = self.score_prompts(token_id_lists)
 
         # map each simulation back into preference-label space, then average per sample
+        per_sample: List[List[Dict[int, float]]] = [[] for _ in samples]
+        for (sample_idx, ordering), probs in zip(provenance, scored):
+            if probs is None:
+                continue
+            converter = ORDERING_CONVERTERS[ordering]
+            per_sample[sample_idx].append({converter[label]: p for label, p in probs.items()})
+
+        results = []
+        for prob_dicts in per_sample:
+            if not prob_dicts:
+                results.append([])
+                continue
+            results.append([
+                float(np.mean([d[1] for d in prob_dicts])),
+                float(np.mean([d[2] for d in prob_dicts])),
+            ])
+
+        assert len(results) == len(samples)
+        return results
+
+    def simulate_annotators_batch_released_compat(
+            self, samples: List[Dict],
+            fewshot_examples_list: List[List[Dict]]) -> List[List[float]]:
+        prompts: List[str] = []
+        provenance: List[tuple] = []
+
+        for fewshot_examples in fewshot_examples_list:
+            for sample_idx, sample in enumerate(samples):
+                first, second = sample["outputs"][0], sample["outputs"][1]
+                for ordering, (a, b) in enumerate(((first, second), (second, first))):
+                    prompts.append(self.build_released_compat_prompt(
+                        sample["instruction"], a, b, fewshot_examples))
+                    provenance.append((sample_idx, ordering))
+
+        scored = self.score_released_compat_prompts(prompts)
+
         per_sample: List[List[Dict[int, float]]] = [[] for _ in samples]
         for (sample_idx, ordering), probs in zip(provenance, scored):
             if probs is None:
