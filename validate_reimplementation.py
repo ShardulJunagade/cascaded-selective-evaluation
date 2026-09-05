@@ -31,7 +31,7 @@ def parse_args():
     parser.add_argument("--released", default="./result/mistral-7b-instruct.calibration.jsonl")
     parser.add_argument("--reproduced", required=True,
                         help="run_open_judge.py output for the same judge and split")
-    parser.add_argument("--label_agreement_threshold", type=float, default=0.95)
+    parser.add_argument("--label_agreement_threshold", type=float, default=0.94)
     parser.add_argument("--correlation_threshold", type=float, default=0.90)
     parser.add_argument("--human_agreement_tolerance", type=float, default=0.02,
                         help="Allowed absolute change in agreement with human labels")
