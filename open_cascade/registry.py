@@ -20,13 +20,14 @@ DEFAULT_OPEN_CASCADE: List[str] = [
 ]
 
 
-# Measured worst-case prompt over the full 5218-instance dataset with the shipped
-# N=K=3 few-shot examples is 2913 tokens (median 1752, p99 2474), plus 1 generated token.
+# Measured prompt lengths vary by chat template and tokenizer. Mistral v0.2 can exceed
+# 4096 tokens on a few samples with the shipped N=K=3 few-shot examples once the full
+# tokenizer template is applied.
 # Capping max_model_len here rather than letting vLLM default to the model's full context
-# (32k+) shrinks the KV cache it must reserve by ~8x, and avoids the common startup failure
+# (32k+) still shrinks the KV cache it must reserve, and avoids the common startup failure
 # "The model's max seq len is larger than the maximum number of tokens that can be stored
 # in the KV cache". Raise this if you increase K or move to a longer-context dataset.
-DEFAULT_MAX_MODEL_LEN = 4096
+DEFAULT_MAX_MODEL_LEN = 8192
 
 
 @dataclass(frozen=True)
