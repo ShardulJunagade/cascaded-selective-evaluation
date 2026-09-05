@@ -3,12 +3,12 @@ import os
 import random
 from argparse import ArgumentParser
 from pathlib import Path
-from typing import List
+from typing import List, Union
 
 import jsonlines
 
 
-def save_to_file(sample_list: List[dict], out_filename: str | Path, save_mode: str = 'w') -> object:
+def save_to_file(sample_list: List[dict], out_filename: Union[str, Path], save_mode: str = 'w') -> object:
     assert save_mode in ['w', 'a'], "Save mode should be either `w` or `a`."
 
     if len(sample_list) == 0:
@@ -89,7 +89,6 @@ if __name__ == "__main__":
     save_to_file(test_samples, args.test_out_filename)
 
 # python prepare_data_splits.py --input_filename=./data/preprocessed/data.jsonl --fewshot_out_filename=./data/split/fewshot.jsonl --calibration_out_filename=./data/split/calibration.jsonl --test_out_filename=./data/split/test.jsonl --N=3 --K=3 --calibration_set_size=500
-
 
 
 
