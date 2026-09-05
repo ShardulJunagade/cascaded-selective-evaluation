@@ -331,34 +331,30 @@ class OpenJudge:
     def simulate_annotators_batch_released_compat(
             self, samples: List[Dict],
             fewshot_examples_list: List[List[Dict]]) -> List[List[float]]:
-        prompts: List[str] = []
-        provenance: List[tuple] = []
-
-        for fewshot_examples in fewshot_examples_list:
-            for sample_idx, sample in enumerate(samples):
-                first, second = sample["outputs"][0], sample["outputs"][1]
-                for ordering, (a, b) in enumerate(((first, second), (second, first))):
-                    prompts.append(self.build_released_compat_prompt(
-                        sample["instruction"], a, b, fewshot_examples))
-                    provenance.append((sample_idx, ordering))
-
-        scored = self.score_released_compat_prompts(prompts)
-
-        per_sample: List[List[Dict[int, float]]] = [[] for _ in samples]
-        for (sample_idx, ordering), probs in zip(provenance, scored):
-            if probs is None:
-                continue
-            converter = ORDERING_CONVERTERS[ordering]
-            per_sample[sample_idx].append({converter[label]: p for label, p in probs.items()})
-
         results = []
-        for prob_dicts in per_sample:
-            if not prob_dicts:
+        for sample in samples:
+            first, second = sample["outputs"][0], sample["outputs"][1]
+            predictive_probs: List[Dict[int, float]] = []
+
+            for ordering, (a, b) in enumerate(((first, second), (second, first))):
+                prompts = [
+                    self.build_released_compat_prompt(
+                        sample["instruction"], a, b, fewshot_examples)
+                    for fewshot_examples in fewshot_examples_list
+                ]
+                scored = self.score_released_compat_prompts(prompts)
+                converter = ORDERING_CONVERTERS[ordering]
+                for probs in scored:
+                    if probs is None:
+                        continue
+                    predictive_probs.append({converter[label]: p for label, p in probs.items()})
+
+            if not predictive_probs:
                 results.append([])
                 continue
             results.append([
-                float(np.mean([d[1] for d in prob_dicts])),
-                float(np.mean([d[2] for d in prob_dicts])),
+                float(np.mean([d[1] for d in predictive_probs])),
+                float(np.mean([d[2] for d in predictive_probs])),
             ])
 
         assert len(results) == len(samples)
