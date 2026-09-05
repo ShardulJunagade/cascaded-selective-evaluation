@@ -36,6 +36,9 @@ def parse_args():
     parser.add_argument("--resume", action="store_true",
                         help="Append to an existing output file, skipping scored samples")
     parser.add_argument("--no_prefix_caching", action="store_true")
+    parser.add_argument("--released_mistral_compat", action="store_true",
+                        help="Use the released Mistral generate-and-parse scoring path. "
+                             "Only for validating against ./result/mistral-7b-instruct.*.jsonl")
 
     args = parser.parse_args()
 
@@ -82,7 +85,11 @@ if __name__ == "__main__":
           f"({2 * n_annotators} forward passes per sample, "
           f"{2 * n_annotators * len(samples)} total)")
 
-    judge = OpenJudge(args.model_name, enable_prefix_caching=not args.no_prefix_caching)
+    judge = OpenJudge(
+        args.model_name,
+        enable_prefix_caching=not args.no_prefix_caching,
+        released_mistral_compat=args.released_mistral_compat,
+    )
     print(f"Label token ids: {judge.label_token_ids}")
 
     n_dropped = 0
