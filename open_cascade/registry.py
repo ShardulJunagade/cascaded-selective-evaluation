@@ -3,7 +3,7 @@
 Registering a new judge should mean adding one entry here and nothing else.
 """
 from dataclasses import dataclass, field
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 # The paper's cascade, and the open models substituted for the two API judges.
 PAPER_TO_OPEN = {
@@ -35,8 +35,8 @@ class JudgeConfig:
 
     dtype: str = "bfloat16"
     tensor_parallel_size: int = 1
-    quantization: str | None = None  # e.g. "awq", "gptq"
-    max_model_len: int | None = DEFAULT_MAX_MODEL_LEN
+    quantization: Optional[str] = None  # e.g. "awq", "gptq"
+    max_model_len: Optional[int] = DEFAULT_MAX_MODEL_LEN
     gpu_memory_utilization: float = 0.90
 
     extra_llm_kwargs: Dict = field(default_factory=dict)
