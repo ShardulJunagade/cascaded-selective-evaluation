@@ -31,13 +31,15 @@ def _load_image(path: str) -> Image.Image:
 class OpenVLMJudge:
     """An open-weight VLM judge scored via teacher-forced A/B label logprobs."""
 
-    def __init__(self, model_name: str, enable_prefix_caching: bool = True):
+    def __init__(self, model_name: str, enable_prefix_caching: bool = True,
+                 max_fewshot_examples: int = 1):
         logging.getLogger("vllm").setLevel(logging.WARNING)
 
         from vllm import LLM
 
         self.model_name = model_name
         self.config = resolve_vlm_judge(model_name)
+        self.max_fewshot_examples = max_fewshot_examples
 
         llm_kwargs = dict(
             model=self.config.hf_name,
@@ -134,7 +136,7 @@ class OpenVLMJudge:
         content: List[Dict] = [{"type": "text", "text": fewshot_inst_prompt}]
         images: List[Image.Image] = []
 
-        for example in fewshot_examples:
+        for example in fewshot_examples[:self.max_fewshot_examples]:
             preferred_response = "[[A]]" if example["preferences"]["human"] == 1 else "[[B]]"
             image = self._sample_image(example)
             images.append(image)
@@ -194,6 +196,9 @@ class OpenVLMJudge:
 
     def simulate_annotators_batch(self, samples: List[Dict],
                                   fewshot_examples_list: List[List[Dict]]) -> List[List[float]]:
+        if self.max_fewshot_examples < 0:
+            raise ValueError("--max_fewshot_examples must be non-negative")
+
         requests: List[Dict] = []
         provenance: List[tuple] = []
 
