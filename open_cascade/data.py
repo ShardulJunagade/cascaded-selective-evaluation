@@ -2,12 +2,13 @@
 import json
 import os
 from pathlib import Path
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable, List, Union
 
 import jsonlines
 
 # Fields that make up a raw evaluation instance (i.e. everything except judge output).
 INSTANCE_FIELDS = ("instruction", "outputs", "preferences")
+OPTIONAL_INSTANCE_FIELDS = ("image_path", "source")
 
 
 def sample_key(sample: Dict) -> str:
@@ -16,15 +17,20 @@ def sample_key(sample: Dict) -> str:
     Must match the key used by `cascaded_evaluation.util.merge_data`, otherwise judgements
     from different judges will not line up.
     """
-    return f"{sample['instruction']}-{sample['outputs']}"
+    image_path = sample.get("image_path", "")
+    return f"{image_path}-{sample['instruction']}-{sample['outputs']}"
 
 
 def strip_judgement(sample: Dict) -> Dict:
     """Drop `probs`, leaving the raw instance."""
-    return {field: sample[field] for field in INSTANCE_FIELDS}
+    stripped = {field: sample[field] for field in INSTANCE_FIELDS}
+    for field in OPTIONAL_INSTANCE_FIELDS:
+        if field in sample:
+            stripped[field] = sample[field]
+    return stripped
 
 
-def read_jsonl(path: str | Path) -> List[Dict]:
+def read_jsonl(path: Union[str, Path]) -> List[Dict]:
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"Missing {path}")
@@ -32,7 +38,7 @@ def read_jsonl(path: str | Path) -> List[Dict]:
         return list(f)
 
 
-def write_jsonl(samples: Iterable[Dict], path: str | Path, mode: str = "w") -> None:
+def write_jsonl(samples: Iterable[Dict], path: Union[str, Path], mode: str = "w") -> None:
     assert mode in ("w", "a"), "mode should be 'w' or 'a'"
     samples = list(samples)
     if not samples:
@@ -45,13 +51,13 @@ def write_jsonl(samples: Iterable[Dict], path: str | Path, mode: str = "w") -> N
         f.write("\n".join(json.dumps(s) for s in samples) + "\n")
 
 
-def load_fewshot(path: str | Path) -> List[List[Dict]]:
+def load_fewshot(path: Union[str, Path]) -> List[List[Dict]]:
     """Load one few-shot set per simulated annotator."""
     return [sample["evaluated_samples"] for sample in read_jsonl(path)]
 
 
 def load_judgements(model_names: List[str], split: str,
-                    result_dir: str | Path = "./result") -> Dict[str, List[Dict]]:
+                    result_dir: Union[str, Path] = "./result") -> Dict[str, List[Dict]]:
     """Load `{model_name: judged samples}` for one split."""
     result_dir = Path(result_dir)
     return {name: read_jsonl(result_dir / f"{name}.{split}.jsonl") for name in model_names}
