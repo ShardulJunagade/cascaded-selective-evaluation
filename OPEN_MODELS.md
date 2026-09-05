@@ -15,12 +15,14 @@ GPT-4 **78.6%**, so the replacements must preserve that ordering.
 
 ## Design
 
-**Nothing under `cascaded_evaluation/` or `model/` is modified.** The authors' code is left
-exactly as published so the original results stay reproducible.
+The authors' statistical code is left behaviour-compatible so the original text results stay
+reproducible. The only shared utility extension is that sample identity now includes
+`image_path` when present, which prevents VLM samples with identical text but different
+images from colliding.
 
 The statistical core — `SelectiveClassificationUtil` (fixed-sequence testing over the exact
 binomial upper confidence bound), `merge_data`, `prepare_data` — is *imported* from
-`cascaded_evaluation.util` and reused unchanged. That module depends only on `torch` and
+`cascaded_evaluation.util` and reused for both text and VLM cascades. That module depends only on `torch` and
 `scipy`, so it imports cleanly without vLLM or an API key. Only judge inference and the
 cascade loop are reimplemented.
 
@@ -28,11 +30,15 @@ cascade loop are reimplemented.
 open_cascade/
     registry.py   judge configs (HF name, dtype, tensor parallelism, quantisation)
     judge.py      teacher-forced vLLM scoring for Simulated Annotators
+    vlm_registry.py   VLM judge configs
+    vlm_judge.py      teacher-forced vLLM scoring with images
     cascade.py    cascade calibration + decision rule
     data.py       jsonl / split helpers
 
 reconstruct_dataset.py        rebuild data + splits from ./result/
+prepare_vlm_dataset.py        build VLM data + splits from openbmb/RLHF-V-Dataset
 run_open_judge.py             score one judge over a split
+run_open_vlm_judge.py         score one VLM judge over a split
 validate_reimplementation.py  check a re-scored judge against ./result/
 run_open_cascade.py           calibrate + evaluate a cascade
 requirements-open.txt
@@ -118,6 +124,49 @@ Because scoring is cached per judge, **any cascade subset or ordering can be eva
 post-hoc for free** — that is the entire Table 6 ablation. Score a judge once, reuse it
 everywhere.
 
+## Vision-language cascade
+
+The VLM path mirrors the open text-judge path, but each instance also carries an
+`image_path`. The default dataset is `openbmb/RLHF-V-Dataset`, which has the right shape for
+this project: one image, one question/instruction, and a human-preferred `chosen` response
+paired with a `rejected` response.
+
+Prepare the VLM data and local image files:
+
+```shell
+python prepare_vlm_dataset.py
+```
+
+For a quick smoke test before spending GPU time, cap the data:
+
+```shell
+python prepare_vlm_dataset.py --out_dir ./data/vlm-smoke --max_samples 64 --calibration_set_size 16
+```
+
+Score VLM judges with vLLM:
+
+```shell
+for split in calibration test; do
+  for judge in qwen2.5-vl-3b-instruct qwen2.5-vl-7b-instruct; do
+    python run_open_vlm_judge.py --model_name=$judge \
+      --in_filename=./data/vlm/split/$split.jsonl --resume
+  done
+done
+```
+
+`qwen2.5-vl-72b-instruct` is configured for 4-way tensor parallelism in
+`open_cascade/vlm_registry.py`; request four GPUs before scoring it.
+
+Once every VLM judge has calibration and test files under `./result/vlm`, reuse the same
+cascade evaluator:
+
+```shell
+python run_open_cascade.py \
+  --result_dir ./result/vlm \
+  --model_names qwen2.5-vl-3b-instruct qwen2.5-vl-7b-instruct qwen2.5-vl-72b-instruct \
+  --alpha=0.15
+```
+
 ## Optional — raise N and K to 5
 
 The paper used N=K=5 on ChatArena; the shipped `fewshot.jsonl` is N=K=3. Table 5 shows
@@ -144,7 +193,9 @@ Python ints if calling it programmatically, or fix it locally.
 
 ## Deviations from the authors' implementation
 
-These live in `open_cascade/` and are deliberate. The authors' files are untouched.
+These mostly live in `open_cascade/` and are deliberate. The shared utility change in
+`cascaded_evaluation/util.py` only broadens sample identity to include `image_path` when a
+VLM dataset provides one.
 
 ### Judge inference (`open_cascade/judge.py` vs `model/vllm_model.py`)
 
