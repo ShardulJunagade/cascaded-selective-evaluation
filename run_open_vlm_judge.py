@@ -20,6 +20,9 @@ def parse_args():
     parser.add_argument("--result_dir", type=str, default="./result/vlm")
     parser.add_argument("--chunk_size", type=int, default=16,
                         help="Samples per vLLM call; VLM prompts carry images, so keep this modest")
+    parser.add_argument("--max_fewshot_examples", type=int, default=1,
+                        help="Few-shot examples per simulated annotator. VLM prompts include images, "
+                             "so the default is 1 to stay within context.")
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--no_prefix_caching", action="store_true")
     args = parser.parse_args()
@@ -59,12 +62,16 @@ if __name__ == "__main__":
 
     fewshot_examples_list = load_fewshot(args.fewshot_in_filename)
     n_annotators = len(fewshot_examples_list)
-    k_shot = len(fewshot_examples_list[0])
+    k_shot = min(len(fewshot_examples_list[0]), args.max_fewshot_examples)
     print(f"Simulated Annotators: N={n_annotators}, K={k_shot} "
           f"({2 * n_annotators} forward passes per sample, "
           f"{2 * n_annotators * len(samples)} total)")
 
-    judge = OpenVLMJudge(args.model_name, enable_prefix_caching=not args.no_prefix_caching)
+    judge = OpenVLMJudge(
+        args.model_name,
+        enable_prefix_caching=not args.no_prefix_caching,
+        max_fewshot_examples=args.max_fewshot_examples,
+    )
     print(f"Label token ids: {judge.label_token_ids}")
 
     n_dropped = 0
