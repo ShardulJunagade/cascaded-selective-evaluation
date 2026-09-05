@@ -1,7 +1,7 @@
 import math
 import os
 import time
-from typing import List, Dict, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import openai
@@ -117,7 +117,7 @@ class OpenAIModel:
 
         return completion.choices[0]
 
-    def prompt_generation(self, system_prompt: str, prompt: str, prompt_config: Dict) -> Choice | None:
+    def prompt_generation(self, system_prompt: str, prompt: str, prompt_config: Dict) -> Optional[Choice]:
         try:
             inferred_answer = self._request_generation(system_prompt, prompt, prompt_config)
             return inferred_answer
@@ -142,4 +142,3 @@ class OpenAIModel:
             print(f"Server Time out. Retrying in {retry_time} seconds...")
             time.sleep(retry_time)
             return self._request_generation(system_prompt, prompt, prompt_config)
-
