@@ -1,0 +1,13 @@
+# Requirements for the open-model replication (open_cascade/).
+# The authors' requirements.txt is left untouched.
+
+# --- core: calibration + decision rule. No GPU, no API key. Runs anywhere. ---
+numpy
+scipy          # used by cascaded_evaluation/util.py but absent from requirements.txt
+torch
+jsonlines
+tqdm
+
+# --- scoring judges locally. Linux only: vLLM has no Windows build. ---
+transformers
+vllm
