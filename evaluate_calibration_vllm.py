@@ -1,7 +1,7 @@
 import json
 from argparse import ArgumentParser
 from pathlib import Path
-from typing import List
+from typing import List, Union
 
 import jsonlines
 import numpy as np
@@ -10,7 +10,7 @@ from tqdm import tqdm
 from model.vllm_model import VLLMModel
 
 
-def save_to_file(sample_list: List[dict], out_filename: str | Path, save_mode: str = 'w') -> object:
+def save_to_file(sample_list: List[dict], out_filename: Union[str, Path], save_mode: str = 'w') -> object:
     assert save_mode in ['w', 'a'], "Save mode should be either `w` or `a`."
 
     if len(sample_list) == 0:
