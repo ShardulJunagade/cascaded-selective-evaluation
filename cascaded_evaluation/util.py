@@ -14,7 +14,8 @@ def merge_data(samples: Dict[str, List[Dict]], model_names: List[str]) -> List[D
     unique_sample_dict = {}
     for model_name in model_names:
         for sample in samples[model_name]:
-            sample_key = f"{sample['instruction']}-{sample['outputs']}"
+            image_path = sample.get("image_path", "")
+            sample_key = f"{image_path}-{sample['instruction']}-{sample['outputs']}"
 
             if sample_key in unique_sample_dict:
                 unique_sample_dict[sample_key]["probs"][model_name] = sample["probs"]
@@ -25,6 +26,10 @@ def merge_data(samples: Dict[str, List[Dict]], model_names: List[str]) -> List[D
                     "preferences": sample["preferences"],
                     "probs": {model_name: sample["probs"]}
                 }
+                if "image_path" in sample:
+                    unique_sample_dict[sample_key]["image_path"] = sample["image_path"]
+                if "source" in sample:
+                    unique_sample_dict[sample_key]["source"] = sample["source"]
 
     # -- filter samples where probs exist for all models -- #
     merged_samples = []
@@ -114,6 +119,5 @@ class SelectiveClassificationUtil:
 
         # if even the smallest lambda satisfies the condition, return the smallest lambda
         return self.lambdas[0]
-
 
 
