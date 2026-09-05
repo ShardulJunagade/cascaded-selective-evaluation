@@ -2,14 +2,12 @@
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-from open_cascade.registry import DEFAULT_MAX_MODEL_LEN
-
-
 DEFAULT_OPEN_VLM_CASCADE: List[str] = [
     "qwen2.5-vl-3b-instruct",
     "qwen2.5-vl-7b-instruct",
-    "qwen2.5-vl-72b-instruct",
 ]
+
+DEFAULT_VLM_MAX_MODEL_LEN = 16384
 
 
 @dataclass(frozen=True)
@@ -18,9 +16,9 @@ class VLMJudgeConfig:
     dtype: str = "bfloat16"
     tensor_parallel_size: int = 1
     quantization: Optional[str] = None
-    max_model_len: Optional[int] = DEFAULT_MAX_MODEL_LEN
+    max_model_len: Optional[int] = DEFAULT_VLM_MAX_MODEL_LEN
     gpu_memory_utilization: float = 0.90
-    limit_mm_per_prompt: Dict[str, int] = field(default_factory=lambda: {"image": 4})
+    limit_mm_per_prompt: Dict[str, int] = field(default_factory=lambda: {"image": 2})
     extra_llm_kwargs: Dict = field(default_factory=dict)
 
 
