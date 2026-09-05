@@ -149,7 +149,8 @@ Score VLM judges with vLLM:
 for split in calibration test; do
   for judge in qwen2.5-vl-3b-instruct qwen2.5-vl-7b-instruct; do
     python run_open_vlm_judge.py --model_name=$judge \
-      --in_filename=./data/vlm/split/$split.jsonl --resume
+      --in_filename=./data/vlm/split/$split.jsonl --resume \
+      --max_fewshot_examples=1
   done
 done
 ```
