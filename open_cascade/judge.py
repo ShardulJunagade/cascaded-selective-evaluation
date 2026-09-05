@@ -101,6 +101,11 @@ class OpenJudge:
     # ------------------------------------------------------------------ #
     def _render(self, user_content: str) -> str:
         """Render one user turn, open the assistant turn, seed it with "[[".."""
+        if any(model in self.config.hf_name for model in ("Mistral", "Mixtral")):
+            messages = [{"role": "user", "content": user_content}]
+            return self.tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=False) + ASSISTANT_PREFIX
+
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_content},
