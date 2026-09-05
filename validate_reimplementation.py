@@ -33,7 +33,38 @@ def parse_args():
                         help="run_open_judge.py output for the same judge and split")
     parser.add_argument("--label_agreement_threshold", type=float, default=0.95)
     parser.add_argument("--correlation_threshold", type=float, default=0.90)
+    parser.add_argument("--debug_examples", type=int, default=8,
+                        help="Print the largest confidence shifts and label flips")
     return parser.parse_args()
+
+
+def truncate(text: str, limit: int = 220) -> str:
+    text = " ".join(text.split())
+    if len(text) <= limit:
+        return text
+    return text[:limit - 3] + "..."
+
+
+def print_debug_examples(title, indices, shared, released, reproduced, rel, rep,
+                         rel_label, rep_label, human, rel_phat, rep_phat):
+    if len(indices) == 0:
+        return
+
+    print(f"\n{title}")
+    print("-" * len(title))
+    for rank, idx in enumerate(indices, start=1):
+        key = shared[idx]
+        sample = released[key]
+        print(f"[{rank}] index={idx} human={int(human[idx]) + 1} "
+              f"released_label={int(rel_label[idx]) + 1} reproduced_label={int(rep_label[idx]) + 1}")
+        print(f"    released_probs   : [{rel[idx, 0]:.6f}, {rel[idx, 1]:.6f}] "
+              f"phat={rel_phat[idx]:.6f}")
+        print(f"    reproduced_probs : [{rep[idx, 0]:.6f}, {rep[idx, 1]:.6f}] "
+              f"phat={rep_phat[idx]:.6f}")
+        print(f"    delta_phat       : {abs(rel_phat[idx] - rep_phat[idx]):.6f}")
+        print(f"    instruction      : {truncate(sample['instruction'])}")
+        print(f"    output_1         : {truncate(sample['outputs'][0])}")
+        print(f"    output_2         : {truncate(sample['outputs'][1])}")
 
 
 if __name__ == "__main__":
@@ -70,6 +101,39 @@ if __name__ == "__main__":
     print(f"human agreement, released                : {float((rel_label == human).mean()):.4f}")
     print(f"human agreement, reproduced              : {float((rep_label == human).mean()):.4f}")
     print(f"mean phat, released / reproduced         : {rel_phat.mean():.4f} / {rep_phat.mean():.4f}")
+
+    if args.debug_examples > 0:
+        deltas = np.abs(rel_phat - rep_phat)
+        worst = np.argsort(-deltas)[:args.debug_examples]
+        flips = np.flatnonzero(rel_label != rep_label)[:args.debug_examples]
+        print_debug_examples(
+            "largest confidence shifts",
+            worst,
+            shared,
+            released,
+            reproduced,
+            rel,
+            rep,
+            rel_label,
+            rep_label,
+            human,
+            rel_phat,
+            rep_phat,
+        )
+        print_debug_examples(
+            "first label flips",
+            flips,
+            shared,
+            released,
+            reproduced,
+            rel,
+            rep,
+            rel_label,
+            rep_label,
+            human,
+            rel_phat,
+            rep_phat,
+        )
 
     ok = (label_agreement >= args.label_agreement_threshold
           and correlation >= args.correlation_threshold)
