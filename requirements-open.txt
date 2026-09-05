@@ -7,6 +7,8 @@ scipy          # used by cascaded_evaluation/util.py but absent from requirement
 torch
 jsonlines
 tqdm
+datasets
+pillow
 
 # --- scoring judges locally. Linux only: vLLM has no Windows build. ---
 transformers
