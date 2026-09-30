@@ -1,0 +1,22 @@
+# The paper's own cascade, on the judgements the authors released in ./result/.
+# Evaluation only -- the GPT judges cannot be re-scored (they are not in the judge registry).
+# Useful as a sanity check of the evaluation code. `--set cascade.split_delta=false`
+# reproduces the released code's behaviour (full delta per judge).
+#
+#   python -m open_cascade evaluate configs/text_paper_released.yaml
+
+name: text_paper_released
+judges: [mistral-7b-instruct, gpt-3.5-turbo, gpt-4-turbo]   # weakest first
+result_dir: ./result
+
+data:
+  builder: released_text
+  out_dir: ./data
+
+cascade:
+  alpha: 0.15
+  delta: 0.1
+  split_delta: true
+
+evaluate:
+  experiments: [cascade, alpha_sweep]

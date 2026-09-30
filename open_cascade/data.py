@@ -1,10 +1,14 @@
-"""jsonl and split helpers shared by the open-model scripts."""
+"""jsonl, few-shot and split helpers shared by every stage of the pipeline.
+
+An *instance* is one pairwise comparison (see builders/base.py for the full format). A
+*judgement* is an instance plus the judge's `probs`: `[P(outputs[0] preferred),
+P(outputs[1] preferred)]`, averaged over the simulated annotators.
+"""
 import json
 import os
+import random
 from pathlib import Path
-from typing import Dict, Iterable, List, Union
-
-import jsonlines
+from typing import Dict, Iterable, List, Tuple, Union
 
 # Fields that make up a raw evaluation instance (i.e. everything except judge output).
 INSTANCE_FIELDS = ("instruction", "outputs", "preferences")
@@ -34,8 +38,8 @@ def read_jsonl(path: Union[str, Path]) -> List[Dict]:
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"Missing {path}")
-    with jsonlines.open(path) as f:
-        return list(f)
+    with open(path, encoding="utf-8") as f:
+        return [json.loads(line) for line in f if line.strip()]
 
 
 def write_jsonl(samples: Iterable[Dict], path: Union[str, Path], mode: str = "w") -> None:
@@ -61,3 +65,31 @@ def load_judgements(model_names: List[str], split: str,
     """Load `{model_name: judged samples}` for one split."""
     result_dir = Path(result_dir)
     return {name: read_jsonl(result_dir / f"{name}.{split}.jsonl") for name in model_names}
+
+
+def make_splits(samples: List[Dict], n_annotators: int, k_shot: int, calibration_size: int,
+                seed: int) -> Tuple[List[List[Dict]], List[Dict], List[Dict]]:
+    """Sample N x K few-shot examples, then shuffle the rest into calibration / test.
+
+    Same procedure (and, for a given seed, same result) as the authors'
+    `prepare_data_splits.py`. As there, few-shot examples are drawn from the whole pool, so
+    they can also appear in calibration or test.
+
+    Returns `(fewshot_sets, calibration, test)`, with one few-shot set per annotator.
+    """
+    if len(samples) < n_annotators * k_shot + calibration_size:
+        raise ValueError(
+            f"Need at least N*K + calibration_size = "
+            f"{n_annotators * k_shot + calibration_size} samples, got {len(samples)}."
+        )
+
+    rng = random.Random(seed)
+
+    # remove trivial samples where either response is empty
+    candidates = [s for s in samples if all(len(output) > 0 for output in s["outputs"])]
+    pool = rng.sample(candidates, n_annotators * k_shot)
+    fewshot_sets = [pool[i * k_shot:(i + 1) * k_shot] for i in range(n_annotators)]
+
+    shuffled = list(samples)
+    rng.shuffle(shuffled)
+    return fewshot_sets, shuffled[:calibration_size], shuffled[calibration_size:]

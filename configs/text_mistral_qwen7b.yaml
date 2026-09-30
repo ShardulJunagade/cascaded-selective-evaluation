@@ -1,0 +1,25 @@
+# Open text cascade actually run for Assignment 1 (REPLICATION_RUNS.md, "LLM Run"):
+# Mistral-7B -> Qwen2.5-7B on the paper's reconstructed text split.
+#
+#   python -m open_cascade prepare-data configs/text_mistral_qwen7b.yaml   # once
+#   python -m open_cascade score        configs/text_mistral_qwen7b.yaml   # GPU
+#   python -m open_cascade evaluate     configs/text_mistral_qwen7b.yaml
+
+name: text_mistral_qwen7b
+judges: [mistral-7b-instruct, qwen2.5-7b-instruct]   # weakest first
+result_dir: ./result
+
+data:
+  builder: released_text     # rebuilds data/split/{calibration,test}.jsonl from ./result/
+  out_dir: ./data            # uses the shipped data/split/fewshot.jsonl (N=K=3)
+
+scoring:
+  chunk_size: 64             # samples per vLLM call; each expands to 2N prompts
+
+cascade:
+  alpha: 0.15
+  delta: 0.1
+  split_delta: true
+
+evaluate:
+  experiments: [cascade, alpha_sweep]

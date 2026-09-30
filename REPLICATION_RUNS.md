@@ -7,13 +7,10 @@ This note records the open-model and vision-language replication work run on NCS
 The original text-only cascade is preserved, with an added open-model path under
 `open_cascade/` and a VLM extension for image-conditioned pairwise preference data.
 
-Important additions:
-
-- `run_open_judge.py`: scores open LLM judges with vLLM.
-- `run_open_vlm_judge.py`: scores open VLM judges with vLLM.
-- `prepare_vlm_dataset.py`: converts a VLM preference dataset into this repo's
-  `instruction`, `outputs`, `preferences`, `image_path` format.
-- `run_open_cascade.py`: calibrates and evaluates a cascade from cached judge outputs.
+These runs were made with the standalone scripts `run_open_judge.py`,
+`run_open_vlm_judge.py`, `prepare_vlm_dataset.py` and `run_open_cascade.py`. Those have since
+been folded into the `python -m open_cascade` CLI (see PIPELINE.md); each run below lists
+the equivalent config, which reproduces the same numbers from the same cached judgements.
 
 ## Datasets
 
@@ -79,9 +76,7 @@ mistral-7b-instruct -> qwen2.5-7b-instruct
 Command:
 
 ```shell
-python run_open_cascade.py \
-  --model_names mistral-7b-instruct qwen2.5-7b-instruct \
-  --alpha=0.15
+python -m open_cascade evaluate configs/text_mistral_qwen7b.yaml
 ```
 
 Result:
@@ -121,10 +116,7 @@ qwen2.5-vl-3b-instruct -> qwen2.5-vl-7b-instruct
 Command:
 
 ```shell
-python run_open_cascade.py \
-  --result_dir ./result/vlm \
-  --model_names qwen2.5-vl-3b-instruct qwen2.5-vl-7b-instruct \
-  --alpha=0.15
+python -m open_cascade evaluate configs/vlm_qwen_3b_7b.yaml
 ```
 
 Result:
