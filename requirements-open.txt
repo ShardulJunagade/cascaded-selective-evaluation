@@ -5,10 +5,11 @@
 numpy
 scipy          # used by cascaded_evaluation/util.py but absent from requirements.txt
 torch
-jsonlines
+pyyaml         # experiment configs
 tqdm
 datasets
 pillow
+pytest         # python -m pytest
 
 # --- scoring judges locally. Linux only: vLLM has no Windows build. ---
 transformers

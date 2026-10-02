@@ -1,0 +1,26 @@
+# Full open replacement of the paper's cascade (OPEN_MODELS.md):
+# Mistral-7B -> Qwen2.5-7B (for gpt-3.5-turbo) -> Qwen2.5-72B (for gpt-4-turbo).
+# Qwen2.5-72B needs 4 GPUs (tensor_parallel_size in open_cascade/registry.py).
+#
+#   python -m open_cascade prepare-data configs/text_open_cascade.yaml   # once
+#   python -m open_cascade score        configs/text_open_cascade.yaml   # GPU
+#   python -m open_cascade evaluate     configs/text_open_cascade.yaml
+
+name: text_open_cascade
+judges: [mistral-7b-instruct, qwen2.5-7b-instruct, qwen2.5-72b-instruct]   # weakest first
+result_dir: ./result
+
+data:
+  builder: released_text
+  out_dir: ./data
+
+scoring:
+  chunk_size: 64
+
+cascade:
+  alpha: 0.15
+  delta: 0.1
+  split_delta: true
+
+evaluate:
+  experiments: [cascade, alpha_sweep]

@@ -1,0 +1,30 @@
+# Quick end-to-end check of the VLM pipeline on 64 samples before a full run.
+# With only 16 calibration samples, thresholds cannot be calibrated (fixed-sequence
+# testing needs >= 30 instances above a threshold), so expect lambda = 1.0 and low coverage.
+#
+#   python -m open_cascade prepare-data configs/vlm_smoke.yaml
+#   python -m open_cascade score        configs/vlm_smoke.yaml
+#   python -m open_cascade evaluate     configs/vlm_smoke.yaml
+
+name: vlm_smoke
+judges: [qwen2.5-vl-3b-instruct, qwen2.5-vl-7b-instruct]
+result_dir: ./result/vlm-smoke
+
+data:
+  builder: rlhf_v
+  out_dir: ./data/vlm-smoke
+  n_annotators: 3
+  k_shot: 3
+  calibration_size: 16
+  seed: 42
+  options:
+    dataset_name: openbmb/RLHF-V-Dataset
+    hf_split: train
+    max_samples: 64
+
+scoring:
+  chunk_size: 16
+  max_fewshot_examples: 1
+
+evaluate:
+  experiments: [cascade]

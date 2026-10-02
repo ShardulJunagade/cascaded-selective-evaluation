@@ -1,0 +1,33 @@
+# Three-judge VLM cascade from OPEN_MODELS.md. Qwen2.5-VL-72B needs 4 GPUs
+# (tensor_parallel_size in open_cascade/registry.py). Shares data and cached 3B/7B
+# judgements with vlm_qwen_3b_7b.yaml, so only the 72B judge needs scoring:
+#
+#   python -m open_cascade score    configs/vlm_qwen_3b_7b_72b.yaml --judge qwen2.5-vl-72b-instruct
+#   python -m open_cascade evaluate configs/vlm_qwen_3b_7b_72b.yaml
+
+name: vlm_qwen_3b_7b_72b
+judges: [qwen2.5-vl-3b-instruct, qwen2.5-vl-7b-instruct, qwen2.5-vl-72b-instruct]
+result_dir: ./result/vlm
+
+data:
+  builder: rlhf_v
+  out_dir: ./data/vlm
+  n_annotators: 3
+  k_shot: 3
+  calibration_size: 500
+  seed: 42
+  options:
+    dataset_name: openbmb/RLHF-V-Dataset
+    hf_split: train
+
+scoring:
+  chunk_size: 16
+  max_fewshot_examples: 1
+
+cascade:
+  alpha: 0.15
+  delta: 0.1
+  split_delta: true
+
+evaluate:
+  experiments: [cascade, alpha_sweep]

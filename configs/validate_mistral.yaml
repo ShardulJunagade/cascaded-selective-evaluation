@@ -1,0 +1,28 @@
+# Check the scoring code before spending GPU time on larger judges (OPEN_MODELS.md, Step 1):
+# re-score Mistral-7B on the calibration split and compare it with the released judgements.
+# `validate` exits non-zero if labels or human agreement drift too much.
+#
+#   python -m open_cascade prepare-data configs/validate_mistral.yaml   # once
+#   python -m open_cascade score        configs/validate_mistral.yaml   # GPU, ~minutes
+#   python -m open_cascade validate     configs/validate_mistral.yaml
+
+name: validate_mistral
+judges: [mistral-7b-instruct]
+result_dir: ./result/_repro    # keep re-scored files away from the released ones
+
+data:
+  builder: released_text
+  out_dir: ./data
+
+scoring:
+  splits: [calibration]
+  released_mistral_compat: false   # true = the released generate-and-parse scoring path
+
+validation:
+  released_file: ./result/mistral-7b-instruct.calibration.jsonl
+  split: calibration
+  label_agreement_threshold: 0.94
+  correlation_threshold: 0.90
+  human_agreement_tolerance: 0.02
+  strict_confidence: false         # true = also require the correlation threshold
+  debug_examples: 8
