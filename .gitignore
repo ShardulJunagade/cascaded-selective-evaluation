@@ -130,3 +130,5 @@ outputs/
 .vscode/
 .idea/
 __MACOSX/
+cluster/delta.env
+cluster/last_submission.txt
