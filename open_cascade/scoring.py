@@ -81,14 +81,16 @@ def score_judge(config: ExperimentConfig, judge_name: str) -> None:
             n_dropped = 0
             for start in tqdm(range(0, len(samples), scoring.chunk_size), desc=split):
                 chunk = samples[start:start + scoring.chunk_size]
-                probs_list = judge.simulate_annotators_batch(chunk, fewshot_examples_list)
+                probs_list, details_list = judge.simulate_annotators_batch_with_details(
+                    chunk, fewshot_examples_list)
 
                 scored = []
-                for sample, probs in zip(chunk, probs_list):
+                for sample, probs, details in zip(chunk, probs_list, details_list):
                     if not is_usable(probs):
                         n_dropped += 1
                         continue
                     sample["probs"] = probs
+                    sample["judge_details"] = details
                     scored.append(sample)
 
                 write_jsonl(scored, out_file, mode="a")

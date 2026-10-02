@@ -115,6 +115,27 @@ def average_simulations(n_samples: int, provenance: Sequence[Tuple[int, int]],
     return results
 
 
+def simulation_details(n_samples: int, provenance: Sequence[Tuple[int, int, int]],
+                       scored: Sequence[LabelProbs]) -> List[Dict]:
+    """Keep each usable simulation after mapping it into original preference space.
+
+    ``provenance`` entries are ``(sample index, annotator index, ordering index)``.
+    These records make judge-setup ablations possible without another GPU scoring run.
+    """
+    details = [{"simulations": []} for _ in range(n_samples)]
+    for (sample_idx, annotator, ordering), probs in zip(provenance, scored):
+        if probs is None:
+            continue
+        converter = ORDERING_CONVERTERS[ordering]
+        mapped = {converter[label]: probability for label, probability in probs.items()}
+        details[sample_idx]["simulations"].append({
+            "annotator": annotator,
+            "ordering": ordering,
+            "probs": [float(mapped[1]), float(mapped[2])],
+        })
+    return details
+
+
 class BaseJudge(ABC):
     """An open-weight judge scored via teacher-forced A/B label logprobs.
 
@@ -253,20 +274,31 @@ class BaseJudge(ABC):
         Returns `[P(preference=1), P(preference=2)]` per sample, or `[]` if every simulation
         for that sample failed to produce a usable label.
         """
+        return self.simulate_annotators_batch_with_details(
+            samples, fewshot_examples_list)[0]
+
+    def simulate_annotators_batch_with_details(
+            self, samples: List[Dict], fewshot_examples_list: List[List[Dict]]
+    ) -> Tuple[List[List[float]], List[Dict]]:
+        """Return aggregate probabilities and the mapped per-run probabilities."""
         if self.max_fewshot_examples is not None:
             fewshot_examples_list = [
                 examples[:self.max_fewshot_examples] for examples in fewshot_examples_list
             ]
 
         requests: List[Dict] = []
-        provenance: List[Tuple[int, int]] = []  # (sample index, ordering index)
+        provenance: List[Tuple[int, int, int]] = []
 
-        for fewshot_examples in fewshot_examples_list:
+        for annotator, fewshot_examples in enumerate(fewshot_examples_list):
             for sample_idx, sample in enumerate(samples):
                 for ordering, (a, b) in enumerate(response_orderings(sample)):
                     requests.append(self.build_request(sample, a, b, fewshot_examples))
-                    provenance.append((sample_idx, ordering))
+                    provenance.append((sample_idx, annotator, ordering))
 
-        results = average_simulations(len(samples), provenance, self.score_requests(requests))
+        scored = self.score_requests(requests)
+        aggregate_provenance = [(sample_idx, ordering)
+                                for sample_idx, _, ordering in provenance]
+        results = average_simulations(len(samples), aggregate_provenance, scored)
+        details = simulation_details(len(samples), provenance, scored)
         assert len(results) == len(samples)
-        return results
+        return results, details

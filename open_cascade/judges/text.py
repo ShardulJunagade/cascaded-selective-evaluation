@@ -14,6 +14,7 @@ from open_cascade.judges.base import (
     LabelProbs,
     average_simulations,
     response_orderings,
+    simulation_details,
 )
 from open_cascade.registry import JudgeConfig
 
@@ -112,9 +113,14 @@ class TextJudge(BaseJudge):
 
     def simulate_annotators_batch(self, samples: List[Dict],
                                   fewshot_examples_list: List[List[Dict]]) -> List[List[float]]:
+        return self.simulate_annotators_batch_with_details(
+            samples, fewshot_examples_list)[0]
+
+    def simulate_annotators_batch_with_details(self, samples: List[Dict],
+                                               fewshot_examples_list: List[List[Dict]]):
         if self.released_mistral_compat:
             return self._simulate_annotators_released_compat(samples, fewshot_examples_list)
-        return super().simulate_annotators_batch(samples, fewshot_examples_list)
+        return super().simulate_annotators_batch_with_details(samples, fewshot_examples_list)
 
     # released-Mistral compatibility path (validation only)
     def _simulate_annotators_released_compat(
@@ -126,7 +132,7 @@ class TextJudge(BaseJudge):
                 examples[:self.max_fewshot_examples] for examples in fewshot_examples_list
             ]
 
-        results = []
+        results, all_details = [], []
         for sample in samples:
             provenance, scored = [], []
             for ordering, (a, b) in enumerate(response_orderings(sample)):
@@ -134,13 +140,16 @@ class TextJudge(BaseJudge):
                     self._render(self.format_user_prompt(sample["instruction"], a, b, examples))
                     for examples in fewshot_examples_list
                 ]
-                for probs in self._score_released_compat_prompts(prompts):
-                    provenance.append((0, ordering))
+                for annotator, probs in enumerate(self._score_released_compat_prompts(prompts)):
+                    provenance.append((0, annotator, ordering))
                     scored.append(probs)
-            results.extend(average_simulations(1, provenance, scored))
+            aggregate_provenance = [(sample_idx, ordering)
+                                    for sample_idx, _, ordering in provenance]
+            results.extend(average_simulations(1, aggregate_provenance, scored))
+            all_details.extend(simulation_details(1, provenance, scored))
 
         assert len(results) == len(samples)
-        return results
+        return results, all_details
 
     def _score_released_compat_prompts(self, prompts: List[str]) -> List[LabelProbs]:
         from vllm import SamplingParams

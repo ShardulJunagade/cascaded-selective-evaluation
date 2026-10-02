@@ -3,7 +3,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from open_cascade.judges.base import average_simulations, normalise_label_logprobs
+from open_cascade.judges.base import (
+    average_simulations,
+    normalise_label_logprobs,
+    simulation_details,
+)
 
 LABEL_IDS = {"A": 10, "B": 11}
 
@@ -39,6 +43,16 @@ def test_average_skips_failed_simulations():
     provenance = [(0, 0), (0, 1), (1, 0)]
     scored = [{"A": 0.9, "B": 0.1}, None, None]
     assert average_simulations(2, provenance, scored) == [pytest.approx([0.9, 0.1]), []]
+
+
+def test_details_preserve_annotator_and_map_swapped_ordering_back():
+    provenance = [(0, 0, 0), (0, 0, 1), (0, 1, 0)]
+    scored = [{"A": 0.8, "B": 0.2}, {"A": 0.4, "B": 0.6}, None]
+    details = simulation_details(1, provenance, scored)
+    assert details == [{"simulations": [
+        {"annotator": 0, "ordering": 0, "probs": [0.8, 0.2]},
+        {"annotator": 0, "ordering": 1, "probs": [0.6, 0.4]},
+    ]}]
 
 
 def test_vlm_fewshot_uses_annotator_preferences_without_human_key(monkeypatch):

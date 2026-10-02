@@ -128,3 +128,37 @@ def test_baseline_comparison_reports_common_metrics():
     assert direct["coverage"]["mean"] == 1.0
     assert direct["macro_source_agreement"]["mean"] is not None
     assert set(direct["per_source"]) == {"source_a", "source_b"}
+    assert result["judge_setup_baselines"]["status"] == "unavailable"
+
+
+def test_judge_setup_baselines_use_cached_runs_and_escalate_inconsistency():
+    from open_cascade.experiments.baselines import run_baseline_comparison
+
+    rows = [row(i) for i in range(42)]
+    consistent = {"simulations": [
+        {"annotator": 0, "ordering": 0, "probs": [0.9, 0.1]},
+        {"annotator": 0, "ordering": 1, "probs": [0.8, 0.2]},
+        {"annotator": 1, "ordering": 0, "probs": [0.2, 0.8]},
+        {"annotator": 1, "ordering": 1, "probs": [0.9, 0.1]},
+    ]}
+    inconsistent = {"simulations": [
+        {"annotator": 0, "ordering": 0, "probs": [0.9, 0.1]},
+        {"annotator": 0, "ordering": 1, "probs": [0.1, 0.9]},
+    ]}
+    pool = {
+        "small": [dict(r, probs=[0.8, 0.2], judge_details=(
+            inconsistent if i == 0 else consistent)) for i, r in enumerate(rows)],
+        "large": [dict(r, probs=[0.2, 0.8], judge_details=consistent) for r in rows],
+    }
+    cfg = config(n_splits=1)
+    cfg.data.calibration_size = 31
+    result = run_baseline_comparison(cfg, pool, rows)
+
+    assert result["judge_setup_baselines"]["status"] == "available"
+    assert "setup:vanilla_single:small" in result["policies"]
+    assert "setup:position_swap:small" in result["policies"]
+    assert "setup:prompt_order_vote:small" in result["policies"]
+    assert "setup:swap_consistency:small" in result["policies"]
+    escalation = result["policies"]["setup:consistency_escalation"]
+    assert escalation["coverage"]["mean"] == 1.0
+    assert set(escalation["splits"][0]["composition"]) == {"small", "large"}
