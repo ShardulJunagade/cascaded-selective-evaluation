@@ -63,22 +63,24 @@ If you already opened a GPU shell with `srun --pty bash`, do not submit another 
 from inside it. Run:
 
 ```bash
-bash cluster/run_interactive.sh 2>&1 | tee interactive-run.log
+python run_cluster_benchmark.py
 ```
 
-This first runs a real one-pair compatibility check for all four model families, then runs
-data preparation, all four judges, and both evaluations sequentially on the visible GPU.
+No Delta environment file is required. The Python runner uses the active virtual environment
+and visible GPU. It first runs a real one-pair compatibility check for all four model
+families, then runs data preparation, all four judges, and both evaluations sequentially.
+It writes its own timestamped log and `outputs/cluster-run-state.json`.
 Re-running the command is safe: source downloads resume, scoring skips completed JSONL rows,
 and an incomplete last line caused by allocation termination is repaired before resuming.
 
 Monitor cached progress from another shell with:
 
 ```bash
-bash cluster/status.sh
+python check_cluster_benchmark.py
 ```
 
 The allocation must remain active for scoring. If it expires, request another GPU shell,
-return to this directory, and run `cluster/run_interactive.sh` again.
+return to this directory, and run `python run_cluster_benchmark.py` again.
 
 ## Optional: submit the complete dependency chain
 
