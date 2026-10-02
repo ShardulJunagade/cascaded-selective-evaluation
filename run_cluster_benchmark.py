@@ -97,10 +97,15 @@ def configure_storage(log: RunLog) -> None:
     if token:
         os.environ.setdefault("HF_TOKEN", token)
     os.environ.setdefault("HF_HOME", str(bulk / "huggingface"))
-    os.environ.setdefault("HUGGINGFACE_HUB_CACHE", str(bulk / "huggingface/hub"))
+    os.environ.setdefault("HF_HUB_CACHE", str(bulk / "huggingface/hub"))
+    # Retain the deprecated alias for older Transformers/vLLM releases.
+    os.environ.setdefault("HUGGINGFACE_HUB_CACHE", os.environ["HF_HUB_CACHE"])
+    os.environ.setdefault("HF_DATASETS_CACHE", str(bulk / "huggingface/datasets"))
+    os.environ.setdefault("HF_XET_CACHE", str(bulk / "huggingface/xet"))
     os.environ.setdefault("TRANSFORMERS_CACHE", str(bulk / "huggingface/transformers"))
     log.write(f"Bulk storage: {bulk}")
     log.write(f"HF_HOME: {os.environ['HF_HOME']}")
+    log.write(f"HF_DATASETS_CACHE: {os.environ['HF_DATASETS_CACHE']}")
 
 
 def full_data_exists() -> bool:
