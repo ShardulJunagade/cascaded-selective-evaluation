@@ -42,6 +42,7 @@ from model.prompts import (
     fewshot_query_prompt,
     system_prompt,
 )
+from open_cascade.data import preferred_index
 from open_cascade.registry import resolve_judge
 
 LABELS = ("A", "B")
@@ -160,7 +161,7 @@ class OpenJudge:
         prompt = fewshot_inst_prompt
 
         for example in fewshot_examples:
-            preferred_response = "[[A]]" if example["preferences"]["human"] == 1 else "[[B]]"
+            preferred_response = "[[A]]" if preferred_index(example) == 1 else "[[B]]"
             prompt += "\n" + fewshot_example_prompt.format(
                 instruction=example["instruction"],
                 assistant_a=example["outputs"][0],
@@ -231,7 +232,7 @@ class OpenJudge:
         prompt = fewshot_inst_prompt
 
         for example in fewshot_examples:
-            preferred_response = "[[A]]" if example["preferences"]["human"] == 1 else "[[B]]"
+            preferred_response = "[[A]]" if preferred_index(example) == 1 else "[[B]]"
             prompt += "\n" + fewshot_example_prompt.format(
                 instruction=example["instruction"],
                 assistant_a=example["outputs"][0],

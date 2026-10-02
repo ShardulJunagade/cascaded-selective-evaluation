@@ -2,6 +2,43 @@
 
 This is the supplementary code for the paper **Trust or Escalate: LLM Judges with Provable Guarantees for Human Judgement**.
 
+---
+
+## Multimodal extension (CS 613 project)
+
+Extends the method from text-only LLM judges to vision-language judges. The
+dataset pipeline lives in [`prepare_data/`](prepare_data/) and builds a
+31,635-instance image-grounded preference corpus from five public sources.
+
+**No data is in this repository** — the raw sources are ~43 GB. To obtain it:
+
+```shell
+pip install -r requirements-open.txt
+python get_data.py
+```
+
+That downloads the sources, builds the corpus into `data/vlm_v2_export/`, and
+verifies it. One source (VisionArena-Battle) is gated and needs
+`hf auth login`; see [`get_data.py`](get_data.py) for the details.
+
+Start here before running experiments:
+
+| Document | What it covers |
+|---|---|
+| [DATASET_HANDOFF.md](DATASET_HANDOFF.md) | what the corpus is and how to run on it |
+| [DATASET_FINDINGS.md](DATASET_FINDINGS.md) | bias analysis, filtering rationale, bottlenecks — report material |
+| [prepare_data/README.md](prepare_data/README.md) | pipeline internals |
+
+> **Note on the Assignment 1 VLM result.** The 85.95% / 29.51% figures came
+> from a dataset in which the preferred response was always in slot A, so
+> every few-shot demonstration showed `[[A]]` as the answer. The preferences
+> themselves were genuine and the judge averages both orderings, so the number
+> is not an artefact of position — but the prompts were degenerate and the
+> result should be re-run on this corpus before being reported.
+> DATASET_FINDINGS.md §1 has the detail.
+
+---
+
 ## ***Installation***
 ```shell
 pip install -r requirements.txt

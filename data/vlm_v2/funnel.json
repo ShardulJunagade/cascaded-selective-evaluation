@@ -1,0 +1,137 @@
+{
+  "kept": {
+    "adapted": {
+      "rlhf_v": 5732,
+      "visit_bench": 1009,
+      "visionarena": 25712,
+      "mm_rlhf": 8785,
+      "judge_anything": 307
+    },
+    "hygiene": {
+      "rlhf_v": 5716,
+      "visit_bench": 1009,
+      "visionarena": 25658,
+      "mm_rlhf": 8776,
+      "judge_anything": 306
+    },
+    "dedup": {
+      "visit_bench": 1008,
+      "visionarena": 25651,
+      "judge_anything": 306,
+      "mm_rlhf": 8650,
+      "rlhf_v": 5716
+    },
+    "tie_routing": {
+      "visit_bench": 999,
+      "visionarena": 15964,
+      "judge_anything": 306,
+      "mm_rlhf": 8650,
+      "rlhf_v": 5716
+    },
+    "position_randomized": {
+      "visit_bench": 999,
+      "visionarena": 15964,
+      "judge_anything": 306,
+      "mm_rlhf": 8650,
+      "rlhf_v": 5716
+    },
+    "split:fewshot": {
+      "visionarena": 2281,
+      "mm_rlhf": 465,
+      "rlhf_v": 322,
+      "visit_bench": 76,
+      "judge_anything": 20
+    },
+    "split:dev": {
+      "visionarena": 1479,
+      "rlhf_v": 585,
+      "mm_rlhf": 980,
+      "visit_bench": 83,
+      "judge_anything": 36
+    },
+    "split:eval_pool": {
+      "visionarena": 12204,
+      "rlhf_v": 4809,
+      "mm_rlhf": 7205,
+      "visit_bench": 840,
+      "judge_anything": 250
+    }
+  },
+  "dropped": {
+    "adapted": {
+      "rlhf_v": {
+        "empty question or response": 1
+      },
+      "visit_bench": {
+        "empty instruction or response": 1
+      },
+      "visionarena": {
+        "multi-turn battle": 4136,
+        "empty instruction or response": 1
+      },
+      "mm_rlhf": {
+        "no pair with score gap >= 1.0": 3718,
+        "safety subset": 984,
+        "video prompt": 2855
+      },
+      "judge_anything": {
+        "multi-image task (2 images)": 40,
+        "multi-image task (5 images)": 32,
+        "multi-image task (3 images)": 20,
+        "missing response for one side": 1
+      }
+    },
+    "hygiene": {
+      "rlhf_v": {
+        "identical responses": 16
+      },
+      "visionarena": {
+        "both responses are refusals": 18,
+        "identical responses": 36
+      },
+      "mm_rlhf": {
+        "identical responses": 9
+      },
+      "judge_anything": {
+        "identical responses": 1
+      }
+    },
+    "dedup": {
+      "visit_bench": {
+        "duplicate instance": 1
+      },
+      "visionarena": {
+        "duplicate instance": 7
+      },
+      "mm_rlhf": {
+        "duplicate instance": 126
+      }
+    },
+    "tie_routing": {
+      "visit_bench": {
+        "routed to tie set": 9
+      },
+      "visionarena": {
+        "routed to tie set": 9687
+      }
+    },
+    "position_randomized": {},
+    "split:fewshot": {},
+    "split:dev": {},
+    "split:eval_pool": {}
+  },
+  "notes": [
+    "rlhf_v: HF release `openbmb/RLHF-V-Dataset` has 5733 rows. The 1.4K figure quoted in the Assignment 1 report is the original paper's annotation count; the published release is larger and is what both the old prepare_vlm_dataset.py (5,732 samples) and this pipeline read.",
+    "rlhf_v: no annotator ids and one annotation per instance, so it cannot supply Ind. few-shot pools or inter-annotator agreement.",
+    "visit_bench: 5011 judgment rows collapse to 1010 tuples (~5 judgments each). No worker id column, so majority and agreement are available but Ind. annotator pools are not.",
+    "visit_bench: 0 unique image URLs prefetched for 1010 tuples.",
+    "visionarena: 29849 raw battles. The only source with real annotator ids (hashed voting user), so it is the basis for the Ind. pools.",
+    "mm_rlhf: 16342 prompt-level rows; pairs constructed from the ranking with tau=1.0 on the mean of ('faithfulness', 'helpfulness', 'ethical'), one pair per prompt.",
+    "mm_rlhf: rankings carry no annotator id field, so it supplies neither Ind. pools nor inter-annotator agreement.",
+    "mm_rlhf: the release also ships dpo_pairs.jsonl (62,545 ready-made chosen/rejected pairs). It is not used here: those pairs are derived from the same rankings but carry no score gap, so difficulty cannot be controlled, and several pairs share one prompt, which would put correlated instances in one split.",
+    "mm_rlhf: indexed 3 image archives, 94623 members, read in place rather than extracted.",
+    "judge_anything: 1500 queries over 15 task types; Image2Text is 100 of them. The other task types are generation (output is media, nothing for a text judge to compare) or have video or audio input.",
+    "judge_anything: battle outcomes are aggregated, with no annotator ids, so this source cannot feed Ind. pools or inter-annotator agreement.",
+    "split: 26207 leakage components over 31635 records; largest holds 59 (0.2%)."
+  ]
+}

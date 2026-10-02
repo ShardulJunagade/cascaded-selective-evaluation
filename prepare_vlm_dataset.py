@@ -2,6 +2,17 @@
 
 Default source: openbmb/RLHF-V-Dataset, a compact human-preference dataset where each
 sample has an image, a question, a chosen answer, and a rejected answer.
+
+SUPERSEDED by the `prepare_data` package. Kept only to reproduce the Assignment 1
+numbers, because the dataset it writes has a defect that invalidates them: the
+chosen response always goes to `outputs[0]` and every row is labelled
+`preferences={"human": 1}`. The gold label is therefore constant, and a judge
+that answers "A" every time scores 100% - so the 85.95% agreement previously
+reported on this data measured agreement with "always A", not with a human
+preference. See prepare_data/README.md.
+
+    python -m prepare_data.download --source rlhf_v
+    python -m prepare_data.run --source rlhf_v
 """
 import json
 import os
@@ -43,6 +54,11 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
+
+    print("WARNING: this script writes a constant-label dataset (chosen is always "
+          "outputs[0], preferences is always {'human': 1}), which makes any agreement "
+          "number computed on it meaningless. Use `python -m prepare_data.run` instead; "
+          "see prepare_data/README.md.\n")
 
     from datasets import load_dataset
 

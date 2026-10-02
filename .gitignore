@@ -93,7 +93,27 @@ ENV/
 
 # auxiliary files
 data/**/*.jsonl
-!data/**/fewshot.jsonl
+!data/split/fewshot.jsonl
+
+# --- dataset pipeline -------------------------------------------------------
+# Everything below is reproducible with `python get_data.py`, so none of it is
+# version controlled. Raw sources alone are ~43 GB.
+data/raw/
+data/vlm/
+data/vlm_v2/media/
+data/vlm_v2/media_index.json
+data/vlm_v2/*/           # per-source canonical records (8 MB+ each)
+reports/media_failures.json
+
+# Kept deliberately, because they are small and are the provenance behind the
+# numbers in the report and in DATASET_HANDOFF.md.
+!data/vlm_v2/manifest.json
+!data/vlm_v2/funnel.json
+# The few-shot prompts define the Simulated Annotator personas, so the exact
+# demonstrations a run used should travel with the code (~27 KB each).
+!data/vlm_v2_export/fewshot.jsonl
+!data/vlm_v2_export/fewshot.ind.jsonl
+!data/vlm_v2_export/fewshot.maj.jsonl
 
 # Rope project settings
 .ropeproject
