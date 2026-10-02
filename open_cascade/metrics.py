@@ -80,3 +80,46 @@ def grouped_agreement(predictions: torch.Tensor, labels: torch.Tensor,
         "macro_coverage": sum(coverages) / len(coverages) if coverages else 0.0,
         "per_group": per_group,
     }
+
+import numpy as np
+try:
+    from sklearn.metrics import roc_auc_score
+except ImportError:
+    roc_auc_score = None
+
+def auroc(phats: torch.Tensor, correct: torch.Tensor) -> float:
+    """Area Under the Receiver Operating Characteristic curve for the confidence scores."""
+    if roc_auc_score is None:
+        raise ImportError("scikit-learn is required for AUROC")
+    
+    y_true = correct.cpu().numpy().astype(int)
+    y_score = phats.cpu().numpy()
+    
+    if len(np.unique(y_true)) < 2:
+        return float('nan')
+        
+    return roc_auc_score(y_true, y_score)
+
+
+def ece(phats: torch.Tensor, correct: torch.Tensor, n_bins: int = 10) -> float:
+    """Expected Calibration Error (ECE)."""
+    phats_np = phats.cpu().numpy()
+    correct_np = correct.cpu().numpy().astype(float)
+    
+    bin_boundaries = np.linspace(0, 1, n_bins + 1)
+    bin_lowers = bin_boundaries[:-1]
+    bin_uppers = bin_boundaries[1:]
+    
+    ece_val = 0.0
+    for bin_lower, bin_upper in zip(bin_lowers, bin_uppers):
+        in_bin = (phats_np > bin_lower) & (phats_np <= bin_upper)
+        if bin_lower == 0.0:
+            in_bin = (phats_np >= bin_lower) & (phats_np <= bin_upper)
+            
+        prop_in_bin = in_bin.mean()
+        if prop_in_bin > 0:
+            accuracy_in_bin = correct_np[in_bin].mean()
+            avg_confidence_in_bin = phats_np[in_bin].mean()
+            ece_val += np.abs(avg_confidence_in_bin - accuracy_in_bin) * prop_in_bin
+            
+    return float(ece_val)
