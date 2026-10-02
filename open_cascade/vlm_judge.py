@@ -16,7 +16,7 @@ from model.vlm_prompts import (
     system_prompt,
 )
 from open_cascade.data import preferred_index
-from open_cascade.vlm_registry import resolve_vlm_judge
+from open_cascade.registry import resolve_judge
 
 LABELS = ("A", "B")
 ASSISTANT_PREFIX = "[["
@@ -39,7 +39,7 @@ class OpenVLMJudge:
         from vllm import LLM
 
         self.model_name = model_name
-        self.config = resolve_vlm_judge(model_name)
+        self.config = resolve_judge(model_name)
         self.max_fewshot_examples = max_fewshot_examples
 
         llm_kwargs = dict(

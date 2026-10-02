@@ -1,9 +1,10 @@
-"""Judge model configurations.
+"""Judge model configurations, text and vision-language.
 
-Registering a new judge should mean adding one entry here and nothing else.
+Registering a new judge means adding one entry to `JUDGE_REGISTRY` and nothing else.
+`modality` picks the judge class: "text" -> judges.text.TextJudge, "vlm" -> judges.vlm.VLMJudge.
 """
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 # The paper's cascade, and the open models substituted for the two API judges.
 PAPER_TO_OPEN = {
@@ -12,14 +13,6 @@ PAPER_TO_OPEN = {
     "gpt-4-turbo": "qwen2.5-72b-instruct",
 }
 
-# Default open cascade, weakest judge first.
-DEFAULT_OPEN_CASCADE: List[str] = [
-    "mistral-7b-instruct",
-    "qwen2.5-7b-instruct",
-    "qwen2.5-72b-instruct",
-]
-
-
 # Measured prompt lengths vary by chat template and tokenizer. Mistral v0.2 can exceed
 # 4096 tokens on a few samples with the shipped N=K=3 few-shot examples once the full
 # tokenizer template is applied.
@@ -27,20 +20,26 @@ DEFAULT_OPEN_CASCADE: List[str] = [
 # (32k+) still shrinks the KV cache it must reserve, and avoids the common startup failure
 # "The model's max seq len is larger than the maximum number of tokens that can be stored
 # in the KV cache". Raise this if you increase K or move to a longer-context dataset.
-DEFAULT_MAX_MODEL_LEN = 8192
+TEXT_MAX_MODEL_LEN = 8192
+# VLM prompts carry image tokens as well, so they need more room.
+VLM_MAX_MODEL_LEN = 16384
 
 
 @dataclass(frozen=True)
 class JudgeConfig:
     hf_name: str
+    modality: str = "text"                  # "text" or "vlm"
 
     dtype: str = "bfloat16"
-    tensor_parallel_size: int = 1
-    quantization: Optional[str] = None  # e.g. "awq", "gptq"
-    max_model_len: Optional[int] = DEFAULT_MAX_MODEL_LEN
+    tensor_parallel_size: int = 1           # number of GPUs the model is sharded over
+    quantization: Optional[str] = None      # e.g. "awq", "gptq"
+    max_model_len: Optional[int] = TEXT_MAX_MODEL_LEN
     gpu_memory_utilization: float = 0.90
 
-    extra_llm_kwargs: Dict = field(default_factory=dict)
+    # VLM only. None = one image per few-shot example plus one for the query.
+    limit_mm_per_prompt: Optional[Dict[str, int]] = None
+
+    extra_llm_kwargs: Dict = field(default_factory=dict)  # passed straight to vllm.LLM
 
 
 JUDGE_REGISTRY: Dict[str, JudgeConfig] = {
@@ -73,6 +72,24 @@ JUDGE_REGISTRY: Dict[str, JudgeConfig] = {
         hf_name="mistralai/Mixtral-8x7B-Instruct-v0.1",
         dtype="half",
         tensor_parallel_size=2,
+    ),
+
+    # ------------------------- vision-language judges ------------------------ #
+    "qwen2.5-vl-3b-instruct": JudgeConfig(
+        hf_name="Qwen/Qwen2.5-VL-3B-Instruct",
+        modality="vlm",
+        max_model_len=VLM_MAX_MODEL_LEN,
+    ),
+    "qwen2.5-vl-7b-instruct": JudgeConfig(
+        hf_name="Qwen/Qwen2.5-VL-7B-Instruct",
+        modality="vlm",
+        max_model_len=VLM_MAX_MODEL_LEN,
+    ),
+    "qwen2.5-vl-72b-instruct": JudgeConfig(
+        hf_name="Qwen/Qwen2.5-VL-72B-Instruct",
+        modality="vlm",
+        max_model_len=VLM_MAX_MODEL_LEN,
+        tensor_parallel_size=4,
     ),
 }
 

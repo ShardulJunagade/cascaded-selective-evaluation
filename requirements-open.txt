@@ -5,10 +5,11 @@
 numpy
 scipy          # used by cascaded_evaluation/util.py but absent from requirements.txt
 torch
-jsonlines
+pyyaml         # experiment configs
 tqdm
 datasets
 pillow
+pytest         # python -m pytest
 
 # --- dataset pipeline (prepare_data/). CPU only, runs on Windows too. ---
 huggingface_hub   # snapshot_download for the raw sources

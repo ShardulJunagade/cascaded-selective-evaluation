@@ -1,0 +1,33 @@
+# VLM cascade actually run for Assignment 1 (REPLICATION_RUNS.md, "VLM Run"):
+# Qwen2.5-VL-3B -> Qwen2.5-VL-7B on openbmb/RLHF-V-Dataset.
+#
+#   python -m open_cascade prepare-data configs/vlm_qwen_3b_7b.yaml   # downloads + saves images
+#   python -m open_cascade score        configs/vlm_qwen_3b_7b.yaml   # GPU
+#   python -m open_cascade evaluate     configs/vlm_qwen_3b_7b.yaml
+
+name: vlm_qwen_3b_7b
+judges: [qwen2.5-vl-3b-instruct, qwen2.5-vl-7b-instruct]   # weakest first
+result_dir: ./result/vlm
+
+data:
+  builder: rlhf_v
+  out_dir: ./data/vlm
+  n_annotators: 3            # N
+  k_shot: 3                  # K (see scoring.max_fewshot_examples)
+  calibration_size: 500
+  seed: 42
+  options:
+    dataset_name: openbmb/RLHF-V-Dataset
+    hf_split: train
+
+scoring:
+  chunk_size: 16             # VLM prompts carry images, so keep this modest
+  max_fewshot_examples: 1    # each few-shot example adds an image; 1 keeps prompts in context
+
+cascade:
+  alpha: 0.15
+  delta: 0.1
+  split_delta: true
+
+evaluate:
+  experiments: [cascade, alpha_sweep]
