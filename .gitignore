@@ -104,6 +104,8 @@ data/vlm_v2/media/
 data/vlm_v2/media_index.json
 data/vlm_v2/*/           # per-source canonical records (8 MB+ each)
 reports/media_failures.json
+result/vlm_v2_maj/
+outputs/
 
 # Kept deliberately, because they are small and are the provenance behind the
 # numbers in the report and in DATASET_HANDOFF.md.

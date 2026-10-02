@@ -26,10 +26,11 @@ class DataConfig:
     calibration_size: int = 500
     seed: int = 42
     options: Dict[str, Any] = field(default_factory=dict)  # builder-specific settings
+    flat_files: bool = False        # prepared export: files directly under out_dir
 
     @property
     def split_dir(self) -> Path:
-        return Path(self.out_dir) / "split"
+        return Path(self.out_dir) if self.flat_files else Path(self.out_dir) / "split"
 
     @property
     def fewshot_file(self) -> Path:
@@ -68,6 +69,8 @@ class EvaluateConfig:
     experiments: List[str] = field(default_factory=lambda: ["cascade"])
     alphas: List[float] = field(default_factory=lambda: [0.30, 0.25, 0.20, 0.15, 0.10, 0.05])
     output_dir: str = "./outputs"
+    n_splits: int = 1000
+    seed: int = 42
 
 
 @dataclass

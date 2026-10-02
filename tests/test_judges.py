@@ -39,3 +39,18 @@ def test_average_skips_failed_simulations():
     provenance = [(0, 0), (0, 1), (1, 0)]
     scored = [{"A": 0.9, "B": 0.1}, None, None]
     assert average_simulations(2, provenance, scored) == [pytest.approx([0.9, 0.1]), []]
+
+
+def test_vlm_fewshot_uses_annotator_preferences_without_human_key(monkeypatch):
+    from PIL import Image
+    from open_cascade.judges.vlm import VLMJudge
+
+    judge = VLMJudge.__new__(VLMJudge)
+    monkeypatch.setattr(judge, "_sample_image", lambda sample: Image.new("RGB", (1, 1)))
+    monkeypatch.setattr(judge, "_render", lambda content: str(content))
+    example = {"instruction": "example", "outputs": ["a", "b"],
+               "preferences": {"arena_user": 2}, "image_path": "unused"}
+    query = dict(example, instruction="query")
+    prompt, images = judge.build_prompt(query, "a", "b", [example])
+    assert "[[B]]" in prompt
+    assert len(images) == 2

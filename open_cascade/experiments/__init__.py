@@ -16,8 +16,13 @@ and list its key under `evaluate.experiments` in a config. If it needs new setti
 fields to EvaluateConfig in open_cascade/config.py.
 """
 from open_cascade.experiments.single_split import run_alpha_sweep, run_cascade
+from open_cascade.experiments.multi_split import run_guarantee_success
 
 EXPERIMENTS = {
     "cascade": run_cascade,
     "alpha_sweep": run_alpha_sweep,
+    "guarantee_success": run_guarantee_success,
 }
+
+# These experiments consume the cached eval_pool rather than a fixed split pair.
+POOL_EXPERIMENTS = {"guarantee_success"}

@@ -74,8 +74,8 @@ def parse_args():
                         help="also write reports/raw_inspection.md (Phase 1 statistics)")
     parser.add_argument("--legacy-split", type=int, default=500,
                         help="also write ONE fixed calibration.jsonl/test.jsonl pair of "
-                             "this calibration size, so the existing run_open_cascade.py "
-                             "runs unchanged for a smoke test. It is not the real "
+                             "this calibration size for an older single-split smoke test. "
+                             "It is not the real "
                              "protocol: a single split cannot show whether the (1-delta) "
                              "guarantee holds, so the evaluation must draw many random "
                              "splits from eval_pool.jsonl. Pass 0 to skip it.")

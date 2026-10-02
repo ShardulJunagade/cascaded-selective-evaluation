@@ -155,7 +155,7 @@ def main() -> int:
             print(f"  - {problem}")
         return 1
 
-    print("Export looks consumable by run_open_vlm_judge.py / run_open_cascade.py.")
+    print("Export looks consumable by the open_cascade score/evaluate pipeline.")
     return 0
 
 

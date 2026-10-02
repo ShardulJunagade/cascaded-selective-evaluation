@@ -10,12 +10,14 @@ below, and point an experiment config's `data.builder` at the new key.
 from open_cascade.builders.base import DatasetBuilder
 from open_cascade.builders.released_text import ReleasedTextBuilder
 from open_cascade.builders.rlhf_v import RLHFVBuilder
+from open_cascade.builders.prepared_export import PreparedExportBuilder
 from open_cascade.config import DataConfig
 
 # data.builder -> builder class
 BUILDERS = {
     "released_text": ReleasedTextBuilder,
     "rlhf_v": RLHFVBuilder,
+    "prepared_export": PreparedExportBuilder,
 }
 
 

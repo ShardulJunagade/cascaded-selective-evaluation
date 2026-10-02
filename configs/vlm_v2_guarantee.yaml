@@ -1,0 +1,25 @@
+# Run get_data.py first. Score eval_pool once, then resample its cached judgements.
+name: vlm_v2_guarantee
+judges: [qwen2.5-vl-3b-instruct, qwen2.5-vl-7b-instruct]
+result_dir: ./result/vlm_v2_maj
+
+data:
+  builder: prepared_export
+  out_dir: ./data/vlm_v2_export
+  flat_files: true
+  calibration_size: 500
+
+scoring:
+  splits: [eval_pool]
+  chunk_size: 16
+  max_fewshot_examples: 2
+
+cascade:
+  alpha: 0.15
+  delta: 0.1
+  split_delta: true
+
+evaluate:
+  experiments: [guarantee_success]
+  n_splits: 1000
+  seed: 42

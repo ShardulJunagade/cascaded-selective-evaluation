@@ -5,7 +5,7 @@ What the corpus is, where it lives, and how to use it.
 For *why* it looks this way — bias analysis, filtering rationale, bottlenecks,
 numbers for the report — see **[DATASET_FINDINGS.md](DATASET_FINDINGS.md)**.
 
-**Status:** complete and validated. No judge has been run on it yet.
+**Status:** complete and validated. No judge has been run on it yet in this checkout.
 
 ---
 
@@ -47,17 +47,14 @@ from the repo root.
 
 ```bash
 pip install -r requirements-open.txt
-
-python run_open_vlm_judge.py --model_name=qwen2.5-vl-3b-instruct \
-  --in_filename=./data/vlm_v2_export/eval_pool.jsonl \
-  --fewshot_in_filename=./data/vlm_v2_export/fewshot.maj.jsonl --resume
-
-python run_open_vlm_judge.py --model_name=qwen2.5-vl-7b-instruct \
-  --in_filename=./data/vlm_v2_export/eval_pool.jsonl \
-  --fewshot_in_filename=./data/vlm_v2_export/fewshot.maj.jsonl --resume
+python -m open_cascade prepare-data configs/vlm_v2_guarantee.yaml
+python -m open_cascade score configs/vlm_v2_guarantee.yaml
+python -m open_cascade evaluate configs/vlm_v2_guarantee.yaml
 ```
 
-Swap in `fewshot.ind.jsonl` for the Ind. variant of Simulated Annotators.
+The config uses the majority few-shot pool and caches both judges' `eval_pool`
+judgements once. To use a different few-shot pool, make a separate export/config
+and result directory so the cached scores cannot be mixed.
 
 ---
 
@@ -94,12 +91,9 @@ cannot show whether the (1−δ) guarantee holds, and that is exactly what the
 Guarantee Success Rate measures. The evaluation must draw **many random
 calibration/test splits from `eval_pool.jsonl`**.
 
-`calibration.jsonl` / `test.jsonl` exist only so the current
-`run_open_cascade.py` runs unchanged for a smoke test. Rebuild with
-`--legacy-split 0` to omit them.
-
-> **This is the main remaining code task:** `run_open_cascade.py` reads that
-> one fixed pair and needs to resample instead.
+`calibration.jsonl` / `test.jsonl` are only a legacy smoke-test pair. The
+`guarantee_success` experiment draws repeated partitions from cached
+`eval_pool` judgements; rebuild with `--legacy-split 0` to omit the fixed pair.
 
 Other rules:
 
@@ -145,9 +139,8 @@ to scratch first.
 
 ## 6. Next tasks
 
-1. **Make `run_open_cascade.py` resample** calibration/test from `eval_pool`.
-   Highest priority; the Guarantee Success Rate depends on it.
-2. **Re-run the 3B→7B cascade** and report **per-source** agreement, not a
+1. **Score `eval_pool` and run `guarantee_success`** with the new config.
+2. **Report per-source agreement** after the 3B→7B run, not a
    pooled number. The old 85.95% / 29.51% should not be carried forward
    (DATASET_FINDINGS.md §1).
 3. **Length-matched ablation.** P(longer preferred) is 0.63–0.72 on four of

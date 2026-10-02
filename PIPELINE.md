@@ -30,6 +30,30 @@ python -m open_cascade score        configs/vlm_qwen_3b_7b.yaml
 python -m open_cascade evaluate     configs/vlm_qwen_3b_7b.yaml
 ```
 
+### New multimodal corpus: repeated evaluation
+
+After `python get_data.py` has built `data/vlm_v2_export/` and the image media,
+use the prepared-export config. `prepare-data` checks that the export is present;
+it does not rebuild or reshuffle it.
+
+```shell
+python -m open_cascade prepare-data configs/vlm_v2_guarantee.yaml
+python -m open_cascade score configs/vlm_v2_guarantee.yaml
+python -m open_cascade evaluate configs/vlm_v2_guarantee.yaml
+```
+
+`score` writes one cached `eval_pool` judgement file per judge under
+`result/vlm_v2_maj/`. `evaluate` checks those files against the current export,
+keeps only rows scored by every judge, and draws `evaluate.n_splits` seeded
+calibration/test partitions. Every partition keeps prompt groups and shared
+perceptual image hashes together. It writes the guarantee success rate, mean
+agreement/coverage, and per-split sizes, seeds and thresholds to
+`outputs/vlm_v2_guarantee/guarantee_success.json`.
+
+For a quick check, add `--set evaluate.n_splits=3` to the evaluate command.
+The default config uses 1000 splits. Cached outputs are tied to the dataset and
+few-shot pool; use a separate `result_dir` for any changed export or prompt pool.
+
 * `score` scores every judge in the config, one process per judge (vLLM does not reliably free
   GPU memory in-process). To score just one, e.g. in its own SLURM job:
   `--judge qwen2.5-vl-7b-instruct`. Scoring resumes where it stopped if a job is preempted.
@@ -46,7 +70,7 @@ python -m open_cascade evaluate     configs/vlm_qwen_3b_7b.yaml
   Overridden runs save to the same `outputs/{name}/` folder; add `--set name=my_variant` to
   keep them apart.
 
-### Shipped configs (everything run for Assignment 1)
+### Shipped configs
 
 | Config | What it is |
 |---|---|
@@ -57,6 +81,7 @@ python -m open_cascade evaluate     configs/vlm_qwen_3b_7b.yaml
 | `vlm_qwen_3b_7b.yaml` | VLM cascade Qwen2.5-VL-3B → 7B on RLHF-V (REPLICATION_RUNS "VLM Run"). |
 | `vlm_qwen_3b_7b_72b.yaml` | Same plus Qwen2.5-VL-72B (4 GPUs). |
 | `vlm_smoke.yaml` | 64-sample end-to-end check of the VLM pipeline. |
+| `vlm_v2_guarantee.yaml` | Assignment 2 prepared corpus: score `eval_pool` once, then evaluate 1000 group-safe splits. |
 
 ### What the config sections mean
 

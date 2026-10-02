@@ -53,15 +53,12 @@ def cmd_score(config: ExperimentConfig, args) -> None:
 
 
 def cmd_evaluate(config: ExperimentConfig) -> None:
-    from open_cascade.data import load_judgements
-    from open_cascade.experiments import EXPERIMENTS
+    from open_cascade.data import load_judgements, read_jsonl
+    from open_cascade.experiments import EXPERIMENTS, POOL_EXPERIMENTS
 
     unknown = [name for name in config.evaluate.experiments if name not in EXPERIMENTS]
     if unknown:
         raise SystemExit(f"Unknown experiment(s) {unknown}. Known: {sorted(EXPERIMENTS)}")
-
-    calibration = load_judgements(config.judges, "calibration", config.result_dir)
-    test = load_judgements(config.judges, "test", config.result_dir)
 
     cascade = config.cascade
     delta_note = (f"split as {cascade.delta}/{len(config.judges)} per judge"
@@ -76,7 +73,16 @@ def cmd_evaluate(config: ExperimentConfig) -> None:
 
     for name in config.evaluate.experiments:
         print(f"\n=== {name} ===")
-        result = EXPERIMENTS[name](config, calibration, test)
+        if name in POOL_EXPERIMENTS:
+            pool = load_judgements(config.judges, "eval_pool", config.result_dir)
+            from open_cascade.experiments.multi_split import validate_scored_pool
+            raw_rows = read_jsonl(config.data.split_file("eval_pool"))
+            validate_scored_pool(raw_rows, pool, config.judges)
+            result = EXPERIMENTS[name](config, pool, raw_rows)
+        else:
+            calibration = load_judgements(config.judges, "calibration", config.result_dir)
+            test = load_judgements(config.judges, "test", config.result_dir)
+            result = EXPERIMENTS[name](config, calibration, test)
         out_file = out_dir / f"{name}.json"
         out_file.write_text(json.dumps(result, indent=2), encoding="utf-8")
         print(f"\nsaved -> {out_file}")
