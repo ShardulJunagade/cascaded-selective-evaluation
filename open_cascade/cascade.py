@@ -26,6 +26,19 @@ from open_cascade import metrics
 from open_cascade.thresholds import THRESHOLD_METHODS
 
 
+def merge_judgement_rows(samples: Dict[str, List[Dict]], model_names: Sequence[str]) -> List[Dict]:
+    """Line up rows scored by every requested judge, preserving their metadata."""
+    missing = [name for name in model_names if name not in samples]
+    if missing:
+        raise KeyError(f"Judgements missing for: {missing}")
+    merged_samples = merge_data(samples, list(model_names))
+    if not merged_samples:
+        raise ValueError(
+            "No instances are covered by every judge. Judges must be scored on the same split."
+        )
+    return merged_samples
+
+
 def merge_judgements(samples: Dict[str, List[Dict]], model_names: Sequence[str]
                      ) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor], torch.Tensor]:
     """Line up judgements from every judge and turn them into tensors.
@@ -33,16 +46,7 @@ def merge_judgements(samples: Dict[str, List[Dict]], model_names: Sequence[str]
     Returns `(phats, yhats, labels)`: per judge, confidence and predicted label on each
     instance scored by *all* judges, plus the human label (0 / 1).
     """
-    missing = [name for name in model_names if name not in samples]
-    if missing:
-        raise KeyError(f"Judgements missing for: {missing}")
-
-    merged_samples = merge_data(samples, list(model_names))
-    if not merged_samples:
-        raise ValueError(
-            "No instances are covered by every judge. Judges must be scored on the same split."
-        )
-    return prepare_data(merged_samples, list(model_names))
+    return prepare_data(merge_judgement_rows(samples, model_names), list(model_names))
 
 
 @dataclass
@@ -56,6 +60,7 @@ class CascadeResult:
     labels: torch.Tensor             # human label
     predictions: torch.Tensor        # label of the judge that answered, -1 = abstained
     evaluators: torch.Tensor         # index of the judge that answered, -1 = abstained
+    samples: List[Dict]              # merged rows, in tensor order, with source metadata
 
     @property
     def coverage(self) -> float:
@@ -140,7 +145,8 @@ class OpenCascadedClassifier:
 
     def apply_decision_rule(self, test_samples: Dict[str, List[Dict]]) -> CascadeResult:
         """Escalate every test instance through the cascade until a judge is confident."""
-        phats, yhats, labels = merge_judgements(test_samples, self.model_names)
+        samples = merge_judgement_rows(test_samples, self.model_names)
+        phats, yhats, labels = prepare_data(samples, self.model_names)
 
         predictions = torch.ones_like(labels) * -1
         evaluators = torch.ones_like(labels) * -1  # index of the judge that evaluated each
@@ -159,4 +165,5 @@ class OpenCascadedClassifier:
             labels=labels,
             predictions=predictions,
             evaluators=evaluators,
+            samples=samples,
         )

@@ -229,12 +229,9 @@ at module level, so it cannot be imported for calibration-only work without both
 `requirements.txt`; a clean install per that file fails. It is listed in
 `requirements-open.txt`.
 
-## Not done yet
+## Repeated evaluation and baselines
 
-* **Multi-split harness.** The paper's headline metric is Guarantee Success Rate over 1000
-  random calibration/test splits (Table 3, Figure 4); the current experiments evaluate a
-  single split. All inference is cached, so this is pure numpy and cheap. It belongs in
-  `open_cascade/experiments/` (see PIPELINE.md, "Adding things").
-* **Selective baselines** — No Selection, Heuristic Selection, Cascaded Heuristic, and
-  Point-Estimate Calibration, needed for the Table 3 comparison. The threshold-based ones
-  plug into `open_cascade/thresholds.py`.
+The `baseline_comparison` experiment now draws leakage-safe random splits from cached
+`eval_pool` judgements and reports the paper's direct, heuristic, cascaded heuristic,
+point-estimate and fixed-sequence policies. See `BASELINES.md` for the multimodal model
+baselines and common metrics.

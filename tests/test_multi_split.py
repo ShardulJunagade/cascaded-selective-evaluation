@@ -14,7 +14,8 @@ def row(i, group=None, image=None, phash=None):
         "outputs": [f"a{i}", f"b{i}"],
         "preferences": {"worker": 1 + i % 2},
         "image_path": image or f"images/{i}.jpg",
-        "source": {"group_id": group or f"g{i}", "media_hash": [phash or f"h{i}"]},
+        "source": {"group_id": group or f"g{i}", "media_hash": [phash or f"h{i}"],
+                   "dataset": "source_a" if i % 2 else "source_b"},
         "probs": [0.8, 0.2],
     }
 
@@ -104,3 +105,26 @@ def test_stale_cache_rows_and_labels_are_rejected():
     pool["large"][0] = dict(raw[0], preferences={"worker": 2})
     with pytest.raises(ValueError, match="disagrees"):
         multi_split.validate_scored_pool(raw, pool, ["small", "large"])
+
+
+def test_baseline_comparison_reports_common_metrics():
+    from open_cascade.experiments.baselines import run_baseline_comparison
+
+    rows = [row(i) for i in range(42)]
+    # Make the two judges disagree so their direct baselines are distinguishable.
+    pool = {
+        "small": [dict(r, probs=[0.8, 0.2]) for r in rows],
+        "large": [dict(r, probs=[0.2, 0.8]) for r in rows],
+    }
+    cfg = config(n_splits=1)
+    cfg.data.calibration_size = 31
+    result = run_baseline_comparison(cfg, pool, rows)
+    assert result["n_splits"] == 1
+    assert set(result["policies"]) == {
+        "direct:small", "direct:large", "heuristic:large", "cascaded_heuristic",
+        "point_estimate:small", "point_estimate:large", "cascaded_selective",
+    }
+    direct = result["policies"]["direct:large"]
+    assert direct["coverage"]["mean"] == 1.0
+    assert direct["macro_source_agreement"]["mean"] is not None
+    assert set(direct["per_source"]) == {"source_a", "source_b"}

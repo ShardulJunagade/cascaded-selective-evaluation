@@ -46,9 +46,11 @@ python -m open_cascade evaluate configs/vlm_v2_guarantee.yaml
 `result/vlm_v2_maj/`. `evaluate` checks those files against the current export,
 keeps only rows scored by every judge, and draws `evaluate.n_splits` seeded
 calibration/test partitions. Every partition keeps prompt groups and shared
-perceptual image hashes together. It writes the guarantee success rate, mean
-agreement/coverage, and per-split sizes, seeds and thresholds to
-`outputs/vlm_v2_guarantee/guarantee_success.json`.
+perceptual image hashes together. It compares direct-judge, heuristic,
+point-estimate and calibrated-cascade policies using overall and macro source
+accuracy, coverage, and guarantee success rate. Results are written to
+`outputs/vlm_v2_guarantee/baseline_comparison.json`; see
+[BASELINES.md](BASELINES.md) for the model and policy rationale.
 
 For a quick check, add `--set evaluate.n_splits=3` to the evaluate command.
 The default config uses 1000 splits. Cached outputs are tied to the dataset and
