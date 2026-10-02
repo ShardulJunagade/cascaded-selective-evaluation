@@ -113,7 +113,7 @@ def full_data_exists() -> bool:
 
 def require_visionarena_access() -> None:
     """Fail before the large downloads unless the token can read the gated corpus."""
-    from huggingface_hub import HfApi, get_token
+    from huggingface_hub import get_hf_file_metadata, get_token, hf_hub_url
 
     token = get_token()
     if not token:
@@ -121,7 +121,15 @@ def require_visionarena_access() -> None:
             "The full corpus needs gated VisionArena access. Accept its Hugging Face terms, "
             "run `hf auth login`, then rerun this command.")
     try:
-        HfApi().dataset_info("lmarena-ai/VisionArena-Battle", token=token)
+        # dataset_info is public even before the gate is accepted. Probe a real
+        # parquet shard with HEAD so this verifies file access without downloading
+        # another ~500 MB merely to perform the preflight.
+        shard_url = hf_hub_url(
+            "lmarena-ai/VisionArena-Battle",
+            "data/train-00000-of-00031.parquet",
+            repo_type="dataset",
+        )
+        get_hf_file_metadata(shard_url, token=token)
     except Exception as error:  # Hub exception classes differ across installed versions.
         raise SystemExit(
             "The saved Hugging Face token cannot read lmarena-ai/VisionArena-Battle. "
