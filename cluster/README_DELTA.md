@@ -1,7 +1,7 @@
 # Run the full VLM benchmark on NCSA Delta
 
 This archive contains the complete code, exact few-shot pools, configs, tests, and Slurm
-workflow. Large public data and model weights are downloaded on Delta. The workflow builds
+workflow. Large public data and model weights are downloaded on Delta. The runner builds
 the full five-source corpus, scores Qwen2.5-VL 3B and 7B, then evaluates all model, setup,
 heuristic, point-estimate, and calibrated-cascade baselines over 1,000 leakage-safe splits.
 
@@ -48,7 +48,31 @@ hf auth login
 
 Do not put a Hugging Face token in `delta.env`; it is intentionally excluded from the ZIP.
 
-## 4. Submit the complete dependency chain
+## 4. Run inside your existing GPU allocation
+
+If you already opened a GPU shell with `srun --pty bash`, do not submit another Slurm job
+from inside it. Run:
+
+```bash
+bash cluster/run_interactive.sh 2>&1 | tee interactive-run.log
+```
+
+This runs data preparation, both judges, and evaluation sequentially on the visible GPU.
+Re-running the command is safe: source downloads resume, scoring skips completed JSONL rows,
+and an incomplete last line caused by allocation termination is repaired before resuming.
+
+Monitor cached progress from another shell with:
+
+```bash
+bash cluster/status.sh
+```
+
+The allocation must remain active for scoring. If it expires, request another GPU shell,
+return to this directory, and run `cluster/run_interactive.sh` again.
+
+## Optional: submit the complete dependency chain
+
+Use this only when you want the scheduler to manage separate CPU and GPU jobs:
 
 ```bash
 bash cluster/submit_all.sh
@@ -61,7 +85,7 @@ The launcher prints and records four job IDs:
 3. Qwen2.5-VL-7B scoring after the data job succeeds.
 4. CPU evaluation after both scoring jobs succeed.
 
-Scoring writes a checkpoint after every chunk. The Slurm jobs request requeue and restart
+Scoring writes a checkpoint after every chunk. The batch jobs request requeue and restart
 from cached JSONL rows after a node failure, preemption, or the five-minute wall-time signal.
 To inspect progress:
 
