@@ -472,6 +472,24 @@ def test_export_carries_provenance_for_the_bias_slices():
         assert key in instance["source"]
 
 
+def test_visionarena_failed_snapshot_metadata_is_not_available(tmp_path, monkeypatch):
+    """A 403 can leave README/log files behind; those are not a usable dataset."""
+    from prepare_data.adapters.visionarena import VisionArenaAdapter
+    from prepare_data.media import MediaStore
+
+    adapter = VisionArenaAdapter(MediaStore(), Funnel())
+    monkeypatch.setattr(adapter, "raw", tmp_path)
+    (tmp_path / "hf").mkdir()
+    (tmp_path / "hf" / "README.md").write_text("gated", encoding="utf-8")
+    (tmp_path / "download_log.json").write_text('{"status": "failed"}', encoding="utf-8")
+    assert adapter.available() is False
+
+    shard = tmp_path / "hf" / "data" / "train.parquet"
+    shard.parent.mkdir()
+    shard.write_bytes(b"parquet")
+    assert adapter.available() is True
+
+
 # --------------------------------------------------------------------------
 # JudgeAnything parsing
 # --------------------------------------------------------------------------

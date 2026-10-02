@@ -111,12 +111,25 @@ def full_data_exists() -> bool:
         return sum(1 for line in handle if line.strip()) == EXPECTED_ROWS
 
 
-def require_hf_token() -> None:
-    from huggingface_hub import get_token
-    if not get_token():
+def require_visionarena_access() -> None:
+    """Fail before the large downloads unless the token can read the gated corpus."""
+    from huggingface_hub import HfApi, get_token
+
+    token = get_token()
+    if not token:
         raise SystemExit(
             "The full corpus needs gated VisionArena access. Accept its Hugging Face terms, "
             "run `hf auth login`, then rerun this command.")
+    try:
+        HfApi().dataset_info("lmarena-ai/VisionArena-Battle", token=token)
+    except Exception as error:  # Hub exception classes differ across installed versions.
+        raise SystemExit(
+            "The saved Hugging Face token cannot read lmarena-ai/VisionArena-Battle. "
+            "Open https://huggingface.co/datasets/lmarena-ai/VisionArena-Battle while "
+            "signed into the token's account, accept/request access, ensure a fine-grained "
+            "token allows public gated repositories, then run `hf auth login` again. "
+            f"Hugging Face returned: {type(error).__name__}: {error}"
+        ) from error
 
 
 def main() -> int:
@@ -139,7 +152,7 @@ def main() -> int:
         if not full_data_exists():
             if args.skip_data or args.evaluate_only:
                 raise SystemExit("The complete 25,308-row corpus is not present.")
-            require_hf_token()
+            require_visionarena_access()
             log.command([sys.executable, "-u", "get_data.py", "--legacy-split", "0"])
         log.command([sys.executable, "-m", "open_cascade", "prepare-data", FULL_CONFIG])
         log.command([sys.executable, "cluster/verify_full_data.py"])
