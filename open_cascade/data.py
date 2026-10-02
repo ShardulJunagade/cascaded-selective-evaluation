@@ -6,6 +6,7 @@ P(outputs[1] preferred)]`, averaged over the simulated annotators.
 """
 import json
 import os
+from collections import Counter
 import random
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple, Union
@@ -23,6 +24,27 @@ def sample_key(sample: Dict) -> str:
     """
     image_path = sample.get("image_path", "")
     return f"{image_path}-{sample['instruction']}-{sample['outputs']}"
+
+
+def preferred_index(sample: Dict) -> int:
+    """Which output the annotators preferred: 1 = outputs[0], 2 = outputs[1].
+
+    Takes the majority over the `preferences` values instead of reading a fixed
+    "human" key. The text splits carry a single {"human": n} entry, but the
+    multimodal splits key preferences by real annotator id, so that Simulated
+    Annotators (Ind.) can group examples by annotator and so that the majority
+    is visible rather than pre-collapsed. `cascaded_evaluation.util.prepare_data`
+    already derives its labels this way; this keeps few-shot prompt rendering
+    consistent with it.
+    """
+    values = list(sample.get("preferences", {}).values())
+    if not values:
+        raise ValueError(
+            "Few-shot example has no preferences. Tie records are exported with an "
+            "empty preferences map and carry no forced choice, so they must not be "
+            "used as few-shot demonstrations."
+        )
+    return Counter(values).most_common(1)[0][0]
 
 
 def strip_judgement(sample: Dict) -> Dict:

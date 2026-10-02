@@ -11,6 +11,15 @@ datasets
 pillow
 pytest         # python -m pytest
 
+# --- dataset pipeline (prepare_data/). CPU only, runs on Windows too. ---
+huggingface_hub   # snapshot_download for the raw sources
+imagehash         # perceptual hashing for cross-source dedup
+pandas            # VisIT-Bench ships its judgments as CSV
+pyarrow           # parquet shards
+
 # --- scoring judges locally. Linux only: vLLM has no Windows build. ---
 transformers
 vllm
+
+# --- tests ---
+pytest
