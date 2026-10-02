@@ -8,8 +8,9 @@ EXPECTED_EVAL_ROWS = 25_308
 
 parser = argparse.ArgumentParser()
 parser.add_argument("judge")
+parser.add_argument("--result-dir", type=Path, default=Path("result/vlm_v2_multifamily"))
 args = parser.parse_args()
-path = Path("result/vlm_v2_maj") / f"{args.judge}.eval_pool.jsonl"
+path = args.result_dir / f"{args.judge}.eval_pool.jsonl"
 
 count = 0
 with path.open(encoding="utf-8") as handle:

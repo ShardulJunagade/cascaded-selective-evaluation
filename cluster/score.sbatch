@@ -31,10 +31,10 @@ requeue_job() {
 trap requeue_job USR1 TERM
 
 python cluster/verify_full_data.py
-python cluster/repair_jsonl.py "result/vlm_v2_maj/${JUDGE}.eval_pool.jsonl"
+python cluster/repair_jsonl.py "result/vlm_v2_multifamily/${JUDGE}.eval_pool.jsonl"
 nvidia-smi
 srun --kill-on-bad-exit=1 python -u -m open_cascade score \
-  configs/vlm_v2_guarantee.yaml --judge "${JUDGE}" &
+  configs/vlm_v2_4judge.yaml --judge "${JUDGE}" &
 child_pid=$!
 wait "${child_pid}"
 child_pid=""

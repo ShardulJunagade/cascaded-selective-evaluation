@@ -198,6 +198,8 @@ class BaseJudge(ABC):
             llm_kwargs["quantization"] = self.config.quantization
         if self.config.max_model_len is not None:
             llm_kwargs["max_model_len"] = self.config.max_model_len
+        if self.config.trust_remote_code:
+            llm_kwargs["trust_remote_code"] = True
         return llm_kwargs
 
     def _encode(self, text: str) -> List[int]:

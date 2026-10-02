@@ -2,8 +2,17 @@
 
 This archive contains the complete code, exact few-shot pools, configs, tests, and Slurm
 workflow. Large public data and model weights are downloaded on Delta. The runner builds
-the full five-source corpus, scores Qwen2.5-VL 3B and 7B, then evaluates all model, setup,
-heuristic, point-estimate, and calibrated-cascade baselines over 1,000 leakage-safe splits.
+the full five-source corpus, scores four model families once, then evaluates three-judge and
+four-judge cascades plus all model, setup, heuristic, point-estimate, and calibrated-cascade
+baselines over 1,000 leakage-safe splits.
+
+The tested chains are:
+
+```text
+3 judges: IBM Granite Vision 2B -> Qwen2.5-VL 3B -> Microsoft Phi-3.5 Vision 4.2B
+4 judges: IBM Granite Vision 2B -> Qwen2.5-VL 3B -> Microsoft Phi-3.5 Vision 4.2B
+          -> InternVL3 8B
+```
 
 ## 1. Upload and unpack
 
@@ -57,7 +66,8 @@ from inside it. Run:
 bash cluster/run_interactive.sh 2>&1 | tee interactive-run.log
 ```
 
-This runs data preparation, both judges, and evaluation sequentially on the visible GPU.
+This first runs a real one-pair compatibility check for all four model families, then runs
+data preparation, all four judges, and both evaluations sequentially on the visible GPU.
 Re-running the command is safe: source downloads resume, scoring skips completed JSONL rows,
 and an incomplete last line caused by allocation termination is repaired before resuming.
 
@@ -78,12 +88,14 @@ Use this only when you want the scheduler to manage separate CPU and GPU jobs:
 bash cluster/submit_all.sh
 ```
 
-The launcher prints and records four job IDs:
+The launcher prints and records six job IDs:
 
 1. CPU download, corpus build, and verification.
-2. Qwen2.5-VL-3B scoring after the data job succeeds.
-3. Qwen2.5-VL-7B scoring after the data job succeeds.
-4. CPU evaluation after both scoring jobs succeed.
+2. Granite Vision 2B scoring after the data job succeeds.
+3. Qwen2.5-VL-3B scoring after the data job succeeds.
+4. Phi-3.5 Vision 4.2B scoring after the data job succeeds.
+5. InternVL3 8B scoring after the data job succeeds.
+6. CPU evaluation of the three- and four-judge chains after all scoring jobs succeed.
 
 Scoring writes a checkpoint after every chunk. The batch jobs request requeue and restart
 from cached JSONL rows after a node failure, preemption, or the five-minute wall-time signal.
@@ -102,7 +114,8 @@ If a job stops without requeueing, submit the workflow again with `SKIP_DATA="1"
 The final artifact is:
 
 ```text
-outputs/vlm_v2_guarantee/baseline_comparison.json
+outputs/vlm_v2_3judge/baseline_comparison.json
+outputs/vlm_v2_4judge/baseline_comparison.json
 ```
 
 It includes the common pool inventory, every split, pairwise and macro-source accuracy,
@@ -111,7 +124,7 @@ back with:
 
 ```bash
 scp rpatel25@login.delta.ncsa.illinois.edu:\
-~/cascaded-selective-evaluation/outputs/vlm_v2_guarantee/baseline_comparison.json .
+~/cascaded-selective-evaluation/outputs/vlm_v2_4judge/baseline_comparison.json .
 ```
 
 ## Useful recovery commands
@@ -120,8 +133,10 @@ scp rpatel25@login.delta.ncsa.illinois.edu:\
 squeue -u "$USER"
 sacct -j <JOBID> --format=JobID,State,Elapsed,ExitCode
 python -m prepare_data.verify_export
+python cluster/verify_scored.py granite-vision-3.3-2b
 python cluster/verify_scored.py qwen2.5-vl-3b-instruct
-python cluster/verify_scored.py qwen2.5-vl-7b-instruct
+python cluster/verify_scored.py phi-3.5-vision-instruct
+python cluster/verify_scored.py internvl3-8b
 ```
 
 Raw data is about 43 GB, prepared media about 4 GB, and model caches require additional

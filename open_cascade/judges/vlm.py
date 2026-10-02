@@ -44,7 +44,8 @@ class VLMJudge(BaseJudge):
     def _load_tokenizer(self):
         from transformers import AutoProcessor
 
-        self.processor = AutoProcessor.from_pretrained(self.config.hf_name)
+        self.processor = AutoProcessor.from_pretrained(
+            self.config.hf_name, trust_remote_code=self.config.trust_remote_code)
         return getattr(self.processor, "tokenizer", self.processor)
 
     def _render(self, content: List[Dict]) -> str:

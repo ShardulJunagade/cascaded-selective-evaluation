@@ -84,6 +84,8 @@ few-shot pool; use a separate `result_dir` for any changed export or prompt pool
 | `vlm_qwen_3b_7b_72b.yaml` | Same plus Qwen2.5-VL-72B (4 GPUs). |
 | `vlm_smoke.yaml` | 64-sample end-to-end check of the VLM pipeline. |
 | `vlm_v2_guarantee.yaml` | Assignment 2 prepared corpus: score `eval_pool` once, then evaluate 1000 group-safe splits. |
+| `vlm_v2_3judge.yaml` | Three-family VLM chain: Granite Vision 2B → Qwen2.5-VL 3B → Phi-3.5 Vision 4.2B. |
+| `vlm_v2_4judge.yaml` | Four-family VLM chain: the three tiers above → InternVL3 8B. |
 
 ### What the config sections mean
 

@@ -38,6 +38,7 @@ class JudgeConfig:
 
     # VLM only. None = one image per few-shot example plus one for the query.
     limit_mm_per_prompt: Optional[Dict[str, int]] = None
+    trust_remote_code: bool = False          # model/processor supplied by the HF repository
 
     extra_llm_kwargs: Dict = field(default_factory=dict)  # passed straight to vllm.LLM
 
@@ -90,6 +91,24 @@ JUDGE_REGISTRY: Dict[str, JudgeConfig] = {
         modality="vlm",
         max_model_len=VLM_MAX_MODEL_LEN,
         tensor_parallel_size=4,
+    ),
+    # -- multi-family VLM cascade: increasing parameter count, one GPU each -- #
+    "granite-vision-3.3-2b": JudgeConfig(
+        hf_name="ibm-granite/granite-vision-3.3-2b",
+        modality="vlm",
+        max_model_len=VLM_MAX_MODEL_LEN,
+    ),
+    "phi-3.5-vision-instruct": JudgeConfig(
+        hf_name="microsoft/Phi-3.5-vision-instruct",
+        modality="vlm",
+        max_model_len=VLM_MAX_MODEL_LEN,
+        trust_remote_code=True,
+    ),
+    "internvl3-8b": JudgeConfig(
+        hf_name="OpenGVLab/InternVL3-8B",
+        modality="vlm",
+        max_model_len=VLM_MAX_MODEL_LEN,
+        trust_remote_code=True,
     ),
 }
 

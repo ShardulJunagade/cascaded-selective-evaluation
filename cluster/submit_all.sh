@@ -29,24 +29,33 @@ else
   .venv/bin/python cluster/verify_full_data.py
 fi
 
-score_3b="$(sbatch --parsable --account="${ACCOUNT}" \
+score_granite="$(sbatch --parsable --account="${ACCOUNT}" \
+  --partition="${GPU_PARTITION:-gpuA100x4}" "${dependency[@]}" \
+  --job-name=cse-granite2b cluster/score.sbatch granite-vision-3.3-2b)"
+score_qwen="$(sbatch --parsable --account="${ACCOUNT}" \
   --partition="${GPU_PARTITION:-gpuA100x4}" "${dependency[@]}" \
   --job-name=cse-qwen3b cluster/score.sbatch qwen2.5-vl-3b-instruct)"
-score_7b="$(sbatch --parsable --account="${ACCOUNT}" \
+score_phi="$(sbatch --parsable --account="${ACCOUNT}" \
   --partition="${GPU_PARTITION:-gpuA100x4}" "${dependency[@]}" \
-  --job-name=cse-qwen7b cluster/score.sbatch qwen2.5-vl-7b-instruct)"
+  --job-name=cse-phi4b cluster/score.sbatch phi-3.5-vision-instruct)"
+score_internvl="$(sbatch --parsable --account="${ACCOUNT}" \
+  --partition="${GPU_PARTITION:-gpuA100x4}" "${dependency[@]}" \
+  --job-name=cse-internvl8b cluster/score.sbatch internvl3-8b)"
 evaluate_job="$(sbatch --parsable --account="${ACCOUNT}" \
   --partition="${CPU_PARTITION:-cpu}" \
-  --dependency="afterok:${score_3b}:${score_7b}" cluster/evaluate.sbatch)"
+  --dependency="afterok:${score_granite}:${score_qwen}:${score_phi}:${score_internvl}" \
+  cluster/evaluate.sbatch)"
 
 cat > cluster/last_submission.txt <<EOF
 data=${data_job}
-score_3b=${score_3b}
-score_7b=${score_7b}
+score_granite=${score_granite}
+score_qwen=${score_qwen}
+score_phi=${score_phi}
+score_internvl=${score_internvl}
 evaluate=${evaluate_job}
 EOF
 
 cat cluster/last_submission.txt
 echo
 echo "Monitor: squeue -u ${USER}"
-echo "Logs:    tail -f logs/score-cse-qwen3b-${score_3b}.out"
+echo "Logs:    tail -f logs/score-cse-granite2b-${score_granite}.out"

@@ -1,0 +1,26 @@
+# Four-family chain: adds InternVL3 8B as the final tier to the three-family chain.
+name: vlm_v2_4judge
+judges: [granite-vision-3.3-2b, qwen2.5-vl-3b-instruct, phi-3.5-vision-instruct,
+         internvl3-8b]
+result_dir: ./result/vlm_v2_multifamily
+
+data:
+  builder: prepared_export
+  out_dir: ./data/vlm_v2_export
+  flat_files: true
+  calibration_size: 500
+
+scoring:
+  splits: [eval_pool]
+  chunk_size: 16
+  max_fewshot_examples: 2
+
+cascade:
+  alpha: 0.15
+  delta: 0.1
+  split_delta: true
+
+evaluate:
+  experiments: [baseline_comparison]
+  n_splits: 1000
+  seed: 42

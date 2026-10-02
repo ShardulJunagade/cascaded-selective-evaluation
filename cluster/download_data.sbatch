@@ -27,5 +27,5 @@ PY
 fi
 
 python -u get_data.py --legacy-split 0
-python -m open_cascade prepare-data configs/vlm_v2_guarantee.yaml
+python -m open_cascade prepare-data configs/vlm_v2_4judge.yaml
 python cluster/verify_full_data.py

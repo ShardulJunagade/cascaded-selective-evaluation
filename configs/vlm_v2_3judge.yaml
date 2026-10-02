@@ -1,0 +1,25 @@
+# Three-family chain: IBM Granite Vision 2B -> Qwen2.5-VL 3B -> Phi-3.5 Vision 4.2B.
+name: vlm_v2_3judge
+judges: [granite-vision-3.3-2b, qwen2.5-vl-3b-instruct, phi-3.5-vision-instruct]
+result_dir: ./result/vlm_v2_multifamily
+
+data:
+  builder: prepared_export
+  out_dir: ./data/vlm_v2_export
+  flat_files: true
+  calibration_size: 500
+
+scoring:
+  splits: [eval_pool]
+  chunk_size: 16
+  max_fewshot_examples: 2
+
+cascade:
+  alpha: 0.15
+  delta: 0.1
+  split_delta: true
+
+evaluate:
+  experiments: [baseline_comparison]
+  n_splits: 1000
+  seed: 42
