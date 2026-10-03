@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """Run one real pair through a judge before committing to its full scoring pass."""
 import argparse
+from pathlib import Path
+import sys
+
+# Direct execution sets sys.path[0] to cluster/, not the repository root.
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from open_cascade.config import load_config
 from open_cascade.data import load_fewshot, read_jsonl
