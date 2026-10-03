@@ -35,4 +35,6 @@ python -u run_small_benchmark.py
 ```
 
 Judge caches are written to `result/vlm_v2_balanced_1k`, separate from the full-corpus
-caches. Results are written under `outputs/vlm_v2_small_{3judge,4judge}`.
+caches. VLM judges use the corpus preparation budget of 32,768 tokens so K=2 prompts
+with multiple images are scored without changing the confidence protocol. Results are
+written under `outputs/vlm_v2_small_{3judge,4judge}`.

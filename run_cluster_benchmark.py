@@ -103,9 +103,11 @@ def configure_storage(log: RunLog) -> None:
     os.environ.setdefault("HF_DATASETS_CACHE", str(bulk / "huggingface/datasets"))
     os.environ.setdefault("HF_XET_CACHE", str(bulk / "huggingface/xet"))
     os.environ.setdefault("TRANSFORMERS_CACHE", str(bulk / "huggingface/transformers"))
+    os.environ.setdefault("VLLM_CACHE_ROOT", str(bulk / "vllm"))
     log.write(f"Bulk storage: {bulk}")
     log.write(f"HF_HOME: {os.environ['HF_HOME']}")
     log.write(f"HF_DATASETS_CACHE: {os.environ['HF_DATASETS_CACHE']}")
+    log.write(f"VLLM_CACHE_ROOT: {os.environ['VLLM_CACHE_ROOT']}")
 
 
 def full_data_exists() -> bool:

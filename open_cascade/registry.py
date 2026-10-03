@@ -21,8 +21,10 @@ PAPER_TO_OPEN = {
 # "The model's max seq len is larger than the maximum number of tokens that can be stored
 # in the KV cache". Raise this if you increase K or move to a longer-context dataset.
 TEXT_MAX_MODEL_LEN = 8192
-# VLM prompts carry image tokens as well, so they need more room.
-VLM_MAX_MODEL_LEN = 16384
+# VLM prompts carry image tokens as well. Keep this aligned with the corpus
+# preparation budget: a real Granite K=2 prompt reaches 17k tokens after its
+# three images are expanded, so the previous 16k cap rejected valid records.
+VLM_MAX_MODEL_LEN = 32768
 
 
 @dataclass(frozen=True)
