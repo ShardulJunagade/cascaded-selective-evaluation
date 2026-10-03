@@ -1,0 +1,28 @@
+# Fast profile: 1,000 stratified rows, N=3, K=1, both response orderings.
+name: vlm_v2_fast_4judge
+judges: [granite-vision-3.3-2b, qwen2.5-vl-3b-instruct, phi-3.5-vision-instruct,
+         internvl3-8b]
+result_dir: ./result/vlm_v2_fast_1k_n3_k1
+
+data:
+  builder: prepared_export
+  out_dir: ./data/vlm_v2_fast_export
+  flat_files: true
+  n_annotators: 3
+  k_shot: 1
+  calibration_size: 300
+
+scoring:
+  splits: [eval_pool]
+  chunk_size: 64
+  max_fewshot_examples: 1
+
+cascade:
+  alpha: 0.15
+  delta: 0.1
+  split_delta: true
+
+evaluate:
+  experiments: [baseline_comparison]
+  n_splits: 1000
+  seed: 42
