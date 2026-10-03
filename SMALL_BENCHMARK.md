@@ -29,7 +29,7 @@ If an older unpinned install reports a missing `PixtralRotaryEmbedding`, repair 
 judge runtime once and rerun the same command. The completed corpus is reused:
 
 ```bash
-python -m pip install --no-cache-dir --upgrade "transformers==4.57.1"
+python -m pip install --no-cache-dir --upgrade "transformers==5.5.3"
 python -m pip check
 python -u run_small_benchmark.py
 ```

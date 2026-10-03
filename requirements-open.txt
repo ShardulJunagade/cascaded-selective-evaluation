@@ -18,10 +18,10 @@ pandas            # VisIT-Bench ships its judgments as CSV
 pyarrow           # parquet shards
 
 # --- scoring judges locally. Linux only: vLLM has no Windows build. ---
-# Keep these together. Transformers 5 renamed PixtralRotaryEmbedding, which vLLM
-# 0.11.0 imports while loading the LlavaNext judges used by this benchmark.
-transformers==4.57.1
-vllm==0.11.0
+# Keep these together. vLLM 0.27.1 requires Transformers 5, while Transformers
+# 5.18 renamed a Pixtral class that this vLLM release imports for LlavaNext.
+transformers==5.5.3
+vllm==0.27.1
 
 # --- tests ---
 pytest

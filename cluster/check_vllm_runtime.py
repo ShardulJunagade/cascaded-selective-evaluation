@@ -3,9 +3,14 @@
 from importlib.metadata import PackageNotFoundError, version
 
 
-REPAIR = (
+EXPECTED_VLLM = "0.27.1"
+EXPECTED_TRANSFORMERS = "5.5.3"
+FULL_REPAIR = (
     'python -m pip install --no-cache-dir --upgrade '
-    '"transformers==4.57.1"'
+    '"vllm==0.27.1" "transformers==5.5.3"'
+)
+TRANSFORMERS_REPAIR = (
+    'python -m pip install --no-cache-dir --upgrade "transformers==5.5.3"'
 )
 
 
@@ -15,20 +20,35 @@ def main() -> int:
         transformers_version = version("transformers")
     except PackageNotFoundError as error:
         raise SystemExit(
-            f"Missing benchmark runtime package: {error.name}.\nRepair with:\n  {REPAIR}"
+            f"Missing benchmark runtime package: {error.name}.\n"
+            f"Repair with:\n  {FULL_REPAIR}"
         ) from error
 
+    if vllm_version != EXPECTED_VLLM:
+        raise SystemExit(
+            "Unsupported judge runtime: "
+            f"vllm={vllm_version}, transformers={transformers_version}.\n"
+            f"Repair with:\n  {FULL_REPAIR}"
+        )
+    if transformers_version != EXPECTED_TRANSFORMERS:
+        raise SystemExit(
+            "Unsupported Transformers release for vLLM 0.27.1: "
+            f"transformers={transformers_version}.\n"
+            f"Repair with:\n  {TRANSFORMERS_REPAIR}"
+        )
+
     try:
-        # vLLM 0.11.0 imports this while registering LlavaNext models. Importing it
-        # here catches incompatible Transformers releases before a model is loaded.
+        # vLLM imports this while registering LlavaNext models. Importing both the
+        # symbol and LLM catches package incompatibility before a model is loaded.
         from transformers.models.pixtral.modeling_pixtral import (  # noqa: F401
             PixtralRotaryEmbedding,
         )
-    except ImportError as error:
+        from vllm import LLM  # noqa: F401
+    except (ImportError, RuntimeError) as error:
         raise SystemExit(
             "Incompatible vLLM/Transformers installation: "
             f"vllm={vllm_version}, transformers={transformers_version}.\n"
-            f"Repair with:\n  {REPAIR}"
+            f"Repair with:\n  {FULL_REPAIR}"
         ) from error
 
     print(
