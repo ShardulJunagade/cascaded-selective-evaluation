@@ -8,8 +8,9 @@ from open_cascade.judges import build_judge
 
 parser = argparse.ArgumentParser()
 parser.add_argument("judge")
+parser.add_argument("--config", default="configs/vlm_v2_4judge.yaml")
 args = parser.parse_args()
-config = load_config("configs/vlm_v2_4judge.yaml")
+config = load_config(args.config)
 sample = read_jsonl(config.data.split_file("eval_pool"))[0]
 fewshot = load_fewshot(config.data.fewshot_file)
 

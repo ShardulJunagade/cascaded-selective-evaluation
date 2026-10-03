@@ -9,6 +9,7 @@ EXPECTED_EVAL_ROWS = 25_308
 parser = argparse.ArgumentParser()
 parser.add_argument("judge")
 parser.add_argument("--result-dir", type=Path, default=Path("result/vlm_v2_multifamily"))
+parser.add_argument("--expected-rows", type=int, default=EXPECTED_EVAL_ROWS)
 args = parser.parse_args()
 path = args.result_dir / f"{args.judge}.eval_pool.jsonl"
 
@@ -22,6 +23,6 @@ with path.open(encoding="utf-8") as handle:
         if not simulations:
             raise SystemExit(f"{path}:{number}: missing per-run judge details")
         count += 1
-if count != EXPECTED_EVAL_ROWS:
-    raise SystemExit(f"{path}: expected {EXPECTED_EVAL_ROWS} rows, found {count}")
+if count != args.expected_rows:
+    raise SystemExit(f"{path}: expected {args.expected_rows} rows, found {count}")
 print(f"Scored cache verified: {args.judge}, {count} rows")

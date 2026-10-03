@@ -86,6 +86,15 @@ class Adapter(ABC):
         if not files:
             raise FileNotFoundError(f"No parquet shards under {self.hf_dir()}")
         split = split or self.spec.get("split") or "train"
+        if self.limit is not None:
+            # A normal datasets load first converts every parquet shard into an Arrow
+            # cache, even if the adapter later selects only a small sample. Stream a
+            # seeded, shard-shuffled sample instead so a capped benchmark neither
+            # materializes nor decodes the complete upstream corpus.
+            stream = load_dataset(
+                "parquet", data_files={split: files}, split=split, streaming=True)
+            buffer_size = max(1_000, min(10_000, self.limit * 4))
+            return list(stream.shuffle(seed=self.seed, buffer_size=buffer_size).take(self.limit))
         return load_dataset("parquet", data_files={split: files}, split=split)
 
     def keep(self, n: int = 1) -> None:
