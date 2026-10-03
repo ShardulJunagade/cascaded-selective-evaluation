@@ -80,6 +80,7 @@ def main() -> int:
         if not torch.cuda.is_available():
             raise SystemExit("No CUDA GPU is visible. Run inside the allocated GPU shell.")
         log.write(f"GPU: {torch.cuda.get_device_name(0)}")
+        log.command([sys.executable, "cluster/check_vllm_runtime.py"])
 
         for judge in JUDGES:
             cache = f"{RESULT_DIR}/{judge}.eval_pool.jsonl"

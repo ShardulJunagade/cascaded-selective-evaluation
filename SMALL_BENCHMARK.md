@@ -25,5 +25,14 @@ Run inside an existing GPU allocation:
 python -u run_small_benchmark.py
 ```
 
+If an older unpinned install reports a missing `PixtralRotaryEmbedding`, repair the
+judge runtime once and rerun the same command. The completed corpus is reused:
+
+```bash
+python -m pip install --no-cache-dir --upgrade "transformers==4.57.1"
+python -m pip check
+python -u run_small_benchmark.py
+```
+
 Judge caches are written to `result/vlm_v2_balanced_1k`, separate from the full-corpus
 caches. Results are written under `outputs/vlm_v2_small_{3judge,4judge}`.
