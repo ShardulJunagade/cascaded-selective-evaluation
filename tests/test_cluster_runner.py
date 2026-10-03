@@ -2,9 +2,17 @@
 
 from __future__ import annotations
 
+import importlib
+
 import pytest
 
 import run_cluster_benchmark
+
+
+def test_gpu_entrypoints_are_safe_to_import_for_spawn_workers(monkeypatch):
+    monkeypatch.setattr("sys.argv", ["spawn-worker"])
+    importlib.import_module("cluster.smoke_judge")
+    importlib.import_module("open_cascade.__main__")
 
 
 def test_visionarena_preflight_checks_a_real_shard(monkeypatch):
