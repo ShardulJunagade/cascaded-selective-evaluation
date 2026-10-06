@@ -49,6 +49,9 @@ class VLMJudge(BaseJudge):
         return getattr(self.processor, "tokenizer", self.processor)
 
     def _render(self, content: List[Dict]) -> str:
+        if self.model_name == "phi-3.5-vision-instruct":
+            return self._render_phi(content)
+
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": content},
@@ -65,6 +68,33 @@ class VLMJudge(BaseJudge):
             ]
             head = self.processor.apply_chat_template(
                 messages, tokenize=False, add_generation_prompt=True)
+        return head + ASSISTANT_PREFIX
+
+    def _render_phi(self, content: List[Dict]) -> str:
+        """Render Phi-3.5 Vision's tokenizer prompt and numbered image markers.
+
+        Phi's custom processor does not expose ``apply_chat_template``. Its
+        documented input format instead puts ``<|image_n|>`` markers in the
+        user string and applies the template through ``processor.tokenizer``.
+        """
+        user_parts: List[str] = []
+        image_index = 0
+        for item in content:
+            if item.get("type") == "image":
+                image_index += 1
+                user_parts.append(f"<|image_{image_index}|>\n")
+            elif item.get("type") == "text":
+                user_parts.append(str(item.get("text", "")))
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": "".join(user_parts)},
+        ]
+        head = self.tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True)
+        # The model card removes this training-time terminator for inference.
+        if head.endswith("<|endoftext|>"):
+            head = head[:-len("<|endoftext|>")]
         return head + ASSISTANT_PREFIX
 
     def _probe_prompt(self) -> str:

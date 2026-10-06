@@ -68,3 +68,37 @@ def test_vlm_fewshot_uses_annotator_preferences_without_human_key(monkeypatch):
     prompt, images = judge.build_prompt(query, "a", "b", [example])
     assert "[[B]]" in prompt
     assert len(images) == 2
+
+
+def test_phi_vlm_uses_tokenizer_template_and_numbered_image_markers():
+    from open_cascade.judges.vlm import VLMJudge
+
+    class FakeTokenizer:
+        def apply_chat_template(self, messages, tokenize, add_generation_prompt):
+            self.messages = messages
+            self.tokenize = tokenize
+            self.add_generation_prompt = add_generation_prompt
+            return "rendered<|endoftext|>"
+
+    judge = VLMJudge.__new__(VLMJudge)
+    judge.model_name = "phi-3.5-vision-instruct"
+    judge.tokenizer = FakeTokenizer()
+    # Phi's processor intentionally has no apply_chat_template method.
+    judge.processor = SimpleNamespace(tokenizer=judge.tokenizer)
+
+    rendered = judge._render([
+        {"type": "text", "text": "before"},
+        {"type": "image", "image": object()},
+        {"type": "text", "text": "middle"},
+        {"type": "image", "image": object()},
+        {"type": "text", "text": "after"},
+    ])
+
+    assert judge.tokenizer.messages[0]["role"] == "system"
+    assert judge.tokenizer.messages[1] == {
+        "role": "user",
+        "content": "before<|image_1|>\nmiddle<|image_2|>\nafter",
+    }
+    assert judge.tokenizer.tokenize is False
+    assert judge.tokenizer.add_generation_prompt is True
+    assert rendered == "rendered[["
