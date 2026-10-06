@@ -22,6 +22,15 @@ def test_runtime_preflight_reports_missing_ninja(monkeypatch):
         check_vllm_runtime.main()
 
 
+def test_runner_exposes_tools_installed_beside_python(monkeypatch):
+    monkeypatch.setattr(run_cluster_benchmark.sys, "executable", "/env/bin/python")
+    monkeypatch.setenv("PATH", "/usr/bin")
+    run_cluster_benchmark.ensure_python_bin_on_path()
+    assert run_cluster_benchmark.os.environ["PATH"].split(
+        run_cluster_benchmark.os.pathsep
+    )[0] == "/env/bin"
+
+
 def test_visionarena_preflight_checks_a_real_shard(monkeypatch):
     import huggingface_hub
 

@@ -79,7 +79,16 @@ def safe_link(link: Path, target: Path, log: RunLog) -> None:
     log.write(f"Linked {link.relative_to(ROOT)} -> {target}")
 
 
+def ensure_python_bin_on_path() -> None:
+    """Expose console tools installed beside the explicitly invoked Python."""
+    python_bin = str(Path(sys.executable).resolve().parent)
+    entries = os.environ.get("PATH", "").split(os.pathsep)
+    if python_bin not in entries:
+        os.environ["PATH"] = os.pathsep.join([python_bin, *entries])
+
+
 def configure_storage(log: RunLog) -> None:
+    ensure_python_bin_on_path()
     scratch = os.environ.get("SCRATCH")
     if not scratch:
         log.write("$SCRATCH is not set; storing downloads and model cache in the repository/home.")
