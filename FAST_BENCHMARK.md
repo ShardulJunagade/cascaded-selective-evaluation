@@ -15,6 +15,10 @@ Run inside an existing GPU allocation:
 python -u run_fast_benchmark.py
 ```
 
+The vLLM runtime needs the `ninja` executable for FlashInfer kernel compilation. A
+fresh install through `requirements-open.txt` includes it. Repair an older environment
+once with `python -m pip install --no-cache-dir ninja`.
+
 The runner reuses `data/vlm_v2_small_export`, model downloads, and compilation caches.
 It writes separate judge caches to `result/vlm_v2_fast_1k_n3_k1` and separate results
 under `outputs/vlm_v2_fast_{3judge,4judge}`. Interrupted scoring resumes by sample ID.

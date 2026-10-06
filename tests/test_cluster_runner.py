@@ -7,12 +7,19 @@ import importlib
 import pytest
 
 import run_cluster_benchmark
+from cluster import check_vllm_runtime
 
 
 def test_gpu_entrypoints_are_safe_to_import_for_spawn_workers(monkeypatch):
     monkeypatch.setattr("sys.argv", ["spawn-worker"])
     importlib.import_module("cluster.smoke_judge")
     importlib.import_module("open_cascade.__main__")
+
+
+def test_runtime_preflight_reports_missing_ninja(monkeypatch):
+    monkeypatch.setattr(check_vllm_runtime.shutil, "which", lambda name: None)
+    with pytest.raises(SystemExit, match="pip install --no-cache-dir ninja"):
+        check_vllm_runtime.main()
 
 
 def test_visionarena_preflight_checks_a_real_shard(monkeypatch):

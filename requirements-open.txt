@@ -22,6 +22,7 @@ pyarrow           # parquet shards
 # 5.18 renamed a Pixtral class that this vLLM release imports for LlavaNext.
 transformers==5.5.3
 vllm==0.27.1
+ninja             # FlashInfer JIT kernels compiled during vLLM engine warmup
 
 # --- tests ---
 pytest

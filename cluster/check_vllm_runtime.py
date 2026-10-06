@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Fail early when the installed vLLM and Transformers releases are incompatible."""
 from importlib.metadata import PackageNotFoundError, version
+import shutil
 
 
 EXPECTED_VLLM = "0.27.1"
@@ -15,6 +16,12 @@ TRANSFORMERS_REPAIR = (
 
 
 def main() -> int:
+    if shutil.which("ninja") is None:
+        raise SystemExit(
+            "Missing `ninja`, required to compile FlashInfer kernels during vLLM warmup.\n"
+            "Repair with:\n  python -m pip install --no-cache-dir ninja"
+        )
+
     try:
         vllm_version = version("vllm")
         transformers_version = version("transformers")
