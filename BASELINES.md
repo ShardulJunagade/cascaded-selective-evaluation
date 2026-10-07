@@ -76,6 +76,11 @@ leakage-safe splits for every policy:
 | `point_estimate:<judge>` | each judge separately | calibrate on empirical selective risk, without a confidence bound |
 | `cascaded_selective` | full cascade | fixed-sequence testing with the binomial upper bound |
 
+If a calibration split contains no threshold whose upper confidence bound reaches the
+target, that judge abstains on every item at its stage. Reusing another model's threshold
+would be invalid because confidence scales differ across models; forcing the largest tested
+threshold would answer without the stated risk certificate.
+
 When per-run details are available, the same result also contains:
 
 | Policy | Decision rule |

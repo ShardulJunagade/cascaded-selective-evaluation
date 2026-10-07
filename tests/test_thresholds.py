@@ -2,8 +2,8 @@
 import pytest
 import torch
 
-from open_cascade.thresholds import (heuristic_selection, no_selection,
-                                     point_estimate_calibration)
+from open_cascade.thresholds import (fixed_sequence_testing, heuristic_selection,
+                                     no_selection, point_estimate_calibration)
 
 
 def test_fixed_baseline_thresholds():
@@ -25,3 +25,10 @@ def test_point_estimate_requires_thirty_selected_examples():
     labels = torch.zeros(29)
     yhats = torch.zeros(29)
     assert point_estimate_calibration(phats, yhats, labels, alpha=0.1, delta=0.1) is None
+
+
+def test_fixed_sequence_rejects_largest_candidate_when_bound_fails():
+    phats = torch.linspace(0.7, 0.99, 40)
+    labels = torch.zeros(40)
+    yhats = torch.ones(40)
+    assert fixed_sequence_testing(phats, yhats, labels, alpha=0.15, delta=0.025) is None

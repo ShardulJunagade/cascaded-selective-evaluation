@@ -135,8 +135,10 @@ class OpenCascadedClassifier:
                 alpha, self.per_model_delta)
 
             if lam_hat is None:
-                # too few remaining instances to test a threshold; inherit the previous one
-                lam_hat = self.lambda_hats[-1] if self.lambda_hats else 1.0
+                # Confidence scores are model-specific, so another judge's
+                # threshold is not transferable. A value above the probability
+                # range makes this uncertified stage abstain on every instance.
+                lam_hat = 1.0001
 
             self.lambda_hats.append(lam_hat)
             predicted[phats[name] >= lam_hat] = 1
