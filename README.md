@@ -89,6 +89,62 @@ quality materially affect selective coverage.
 
 ### End-to-end certified routing
 
+#### Why change the certificate?
+
+The previous certificate is statistically valid, but it controls a stronger collection of
+events than the deployed system actually needs. For judge $j$, it separately requires
+the conditional selective risk
+
+$$
+R_j = \Pr(\widehat{Y}_j \ne Y \mid \text{the cascade reaches and accepts at stage }j)
+$$
+
+to be at most `alpha`. With $M$ judges, all $M$ statements must hold simultaneously.
+The method therefore assigns `delta/M` to each stage and uses the union bound:
+
+$$
+\Pr(\text{any stage certificate fails})
+\leq \sum_{j=1}^{M}\delta_j = \delta.
+$$
+
+This construction creates three sources of conservatism:
+
+1. With four judges and `delta=0.1`, each stage must certify at `delta/4=0.025`, producing
+   wider upper risk bounds than a test at `delta=0.1`.
+2. Later judges are calibrated only on examples rejected by earlier judges. Their residual
+   calibration samples can be much smaller, which further widens the binomial bounds.
+3. Requiring every stage to have risk at most `alpha` is sufficient but not necessary for
+   the final cascade to meet the target. The deployed system's risk is a coverage-weighted
+   mixture of stage errors, so a low-coverage stage can exceed `alpha` while the complete
+   policy still remains below `alpha`.
+
+The theoretical limitation is therefore loss of power and coverage rather than an invalid
+guarantee. The four-judge result illustrates it: the stage-wise method has 93.62% accuracy
+when it answers, considerably above the required 85%, but answers only 13.06% of examples.
+The unused accuracy margin indicates that the certificate is more conservative than the
+application requires.
+
+#### What the global certificate changes
+
+Let $\pi_\tau$ denote the complete frozen policy at threshold $\tau$, including all
+early accept, escalation, and final abstention decisions. The global method directly
+controls the quantity used at deployment:
+
+$$
+R(\pi_\tau) =
+\Pr(\widehat{Y}_{\pi_\tau} \ne Y \mid \pi_\tau\text{ answers})
+\leq \alpha.
+$$
+
+This is one end-to-end claim, so its one-sided binomial test can use the full `delta=0.1`.
+Errors and coverage from every stage enter the same final-policy risk calculation, avoiding
+the requirement that each stage independently satisfy the target. It also avoids computing
+a separate certificate from the progressively smaller residual set at every stage.
+
+Using the full `delta` is justified only after the policy has been frozen independently of
+the certification labels. For that reason, each repetition uses a three-way split rather
+than learning and certifying on the same examples:
+
 `global_router_comparison` tests a modified certification strategy designed to improve
 coverage. Each repetition uses three disjoint, group-safe partitions:
 
@@ -102,7 +158,10 @@ coverage. Each repetition uses three disjoint, group-safe partitions:
 Certifying the complete frozen routing policy produces one statistical claim, so it does
 not require a union-bound allocation across four stage-specific claims. Threshold
 candidates are quantiles fixed using only the router-training partition; certification
-labels are not used to construct the score or threshold grid.
+labels are not used to construct the score or threshold grid. Fixed-sequence testing then
+examines the frozen candidates from strict to permissive and stops at the first candidate
+that cannot be certified. The untouched test partition is used only to measure whether the
+claimed risk and coverage generalize.
 
 Two end-to-end policies are implemented:
 
