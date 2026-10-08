@@ -29,6 +29,151 @@ Start here before running experiments:
 | [DATASET_FINDINGS.md](DATASET_FINDINGS.md) | bias analysis, filtering rationale, bottlenecks — report material |
 | [prepare_data/README.md](prepare_data/README.md) | pipeline internals |
 
+## Current VLM benchmark
+
+The reported fast benchmark uses a deterministic, approximately source-stratified sample
+of 1,000 image-grounded preference pairs. Each judge sees an image, an instruction, and
+two candidate responses and predicts the response preferred by human annotators.
+
+The four-model cascade contains models from different families, ordered from smaller to
+larger judges:
+
+1. Granite Vision 3.3 2B
+2. Qwen2.5-VL 3B Instruct
+3. Phi-3.5 Vision Instruct
+4. InternVL3 8B
+
+Scoring uses three simulated annotator prompts, one few-shot example per prompt, and both
+response orderings. A completed model judgment is cached in
+`result/vlm_v2_fast_1k_n3_k1`. All policy comparisons below operate on those cached
+probabilities; evaluation does not load a VLM or repeat inference.
+
+The target selective accuracy is 85%, corresponding to `alpha=0.15`. Statistical
+certificates use `delta=0.1`, giving a target confidence level of 90%. Every repeated split
+keeps connected prompt and perceptually duplicate image groups together to prevent leakage.
+
+### Original methods and baselines
+
+`baseline_comparison` evaluates the following policies over 1,000 random, group-safe
+calibration/test splits:
+
+| Method | Decision rule |
+|---|---|
+| `direct:<judge>` | Always use one judge; this is the standard full-coverage VLM-as-a-judge baseline. |
+| `heuristic:<judge>` | Answer when model confidence is at least `1 - alpha`. |
+| `cascaded_heuristic` | Apply the same confidence heuristic sequentially to all judges. |
+| `point_estimate:<judge>` | Select the lowest threshold whose calibration error is at most `alpha`, without a confidence bound. |
+| `selective:<judge>` | Certify a single judge using a one-sided exact binomial risk bound. |
+| `cascaded_selective` | Certify each cascade stage separately and divide `delta` across the judges. |
+| Judge setup baselines | Test a single prompt, response-order averaging, prompt/order voting, swap consistency, and consistency-based escalation. |
+
+The key four-judge results from the original comparison were:
+
+| Policy | Accuracy | Macro accuracy | Coverage | Nonempty splits | Target success |
+|---|---:|---:|---:|---:|---:|
+| `direct:internvl3-8b` | 70.51% | 73.25% | 100.00% | 100.00% | 0.00% |
+| `heuristic:internvl3-8b` | 88.72% | 85.73% | 33.80% | 100.00% | 99.90% |
+| `cascaded_heuristic` | 86.95% | 84.77% | 36.11% | 100.00% | 96.60% |
+| `point_estimate:internvl3-8b` | 84.77% | 83.68% | 42.74% | 100.00% | 45.70% |
+| `cascaded_selective` | 93.62% | 87.93% | 13.06% | 66.80% | 63.70% |
+
+The heuristic policies provide useful coverage but do not carry a finite-sample risk
+certificate. The original certified cascade exceeds the accuracy target when it answers,
+but its per-stage allocation of `delta/4` makes the thresholds conservative and leaves
+many splits with no selected test examples.
+
+The three-judge chain showed this effect more strongly. `cascaded_selective` reached
+99.50% accuracy but only 0.36% mean coverage and answered in 3.7% of splits. Adding
+InternVL3 raised certified coverage to 13.06%, showing that judge strength and confidence
+quality materially affect selective coverage.
+
+### End-to-end certified routing
+
+`global_router_comparison` tests a modified certification strategy designed to improve
+coverage. Each repetition uses three disjoint, group-safe partitions:
+
+1. **Router training:** fit or define the routing score and freeze the candidate threshold
+   grid.
+2. **Certification:** test the risk of the complete routing policy with fixed-sequence
+   testing and the full `delta=0.1`.
+3. **Testing:** measure accuracy, macro accuracy, coverage, target success, judge calls,
+   early exits, and model composition on unseen examples.
+
+Certifying the complete frozen routing policy produces one statistical claim, so it does
+not require a union-bound allocation across four stage-specific claims. Threshold
+candidates are quantiles fixed using only the router-training partition; certification
+labels are not used to construct the score or threshold grid.
+
+Two end-to-end policies are implemented:
+
+| Method | Routing score |
+|---|---|
+| `global_raw_confidence` | The cached confidence of the current judge. This isolates the effect of end-to-end certification. |
+| `global_learned_router` | A stage-specific logistic correctness score trained from cached confidence, margin, entropy, simulated-annotator vote support, probability dispersion, response-order consistency, response-order probability shift, agreement among visited model families, and earlier confidence summaries. |
+
+No new examples or VLM calls are needed. The learned router and both certificates run on
+CPU from the previously saved judgment files.
+
+### End-to-end results
+
+The four-judge end-to-end experiment used 1,000 repeated splits, with approximately 200
+router-training examples, 300 certification examples, and 500 test examples per split.
+
+| Method | Accuracy | Macro accuracy | Coverage | Mean judges called | Nonempty splits | Certified splits | Target success |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `global_raw_confidence` | **91.08%** | **86.58%** | **25.20%** | 3.891 | **96.00%** | **96.00%** | **86.50%** |
+| `global_learned_router` | 90.42% | 86.04% | 15.43% | 3.909 | 61.80% | 61.80% | 53.70% |
+
+Both experiments use the same cached 1,000-example pool. The original comparison assigns
+about 300 examples to calibration and 700 to testing; the global-router comparison also
+reserves about 200 examples for policy learning, leaving about 500 for testing. The two
+global methods use identical partitions within every repetition, while comparisons against
+the original table are repeated-split aggregate comparisons rather than paired test-set
+differences.
+
+Relative to `cascaded_selective`, raw-confidence end-to-end certification increased mean
+coverage from 13.06% to 25.20%, a 12.14 percentage-point or 1.93x increase. Selective
+accuracy remained above the 85% target. Among splits where the raw policy found a
+certificate, it met the target in `86.5 / 96.0 = 90.1%` of splits, consistent with the
+intended 90% confidence level in this experiment.
+
+The 11-feature learned router is a negative ablation at this sample size: it certifies
+fewer splits and provides less coverage than raw confidence. The likely issue is variance
+from fitting a relatively rich correctness model on roughly 200 training examples. The
+mean of 3.891 judge calls also shows that the successful raw policy usually reaches the
+final judge. The current gain is therefore a coverage improvement from end-to-end
+certification, with little reduction in judge computation.
+
+Accuracy in these tables is conditional on answering and excludes empty selections.
+Coverage is the fraction of test examples answered. `Nonempty splits` is the fraction of
+repetitions answering at least one example. `Certified splits` is the fraction where the
+calibration procedure found a valid threshold. `Target success` is the fraction of all
+repetitions that both answered and achieved at least 85% test accuracy. For heuristic and
+point-estimate methods, target success is an empirical metric and not a certificate.
+
+### Reproduce from cached judgments
+
+Run both the original comparison and the new end-to-end experiment:
+
+```shell
+python -u -m open_cascade evaluate configs/vlm_v2_fast_4judge.yaml
+```
+
+Run only the new CPU experiment without rescoring any model:
+
+```shell
+python -u -m open_cascade evaluate configs/vlm_v2_fast_4judge.yaml \
+  --set 'evaluate.experiments=[global_router_comparison]'
+```
+
+Results are saved to:
+
+- `outputs/vlm_v2_fast_4judge/baseline_comparison.json`
+- `outputs/vlm_v2_fast_4judge/global_router_comparison.json`
+
+See [BASELINES.md](BASELINES.md) for the full baseline definitions and certificate details,
+and [FAST_BENCHMARK.md](FAST_BENCHMARK.md) for the scoring profile and cluster workflow.
+
 > **Note on the Assignment 1 VLM result.** The 85.95% / 29.51% figures came
 > from a dataset in which the preferred response was always in slot A, so
 > every few-shot demonstration showed `[[A]]` as the answer. The preferences
