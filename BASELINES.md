@@ -98,6 +98,39 @@ guarantee success rate. Mean accuracy excludes splits where the policy abstains 
 test item, and `nonempty_split_rate` reports how often a policy answers at least one item.
 The complete per-split records are retained for confidence intervals and plots in the report.
 
+## Coverage experiment: one end-to-end certificate
+
+`global_router_comparison` tests a modified method aimed at the low coverage of the
+per-judge cascade. It uses three disjoint, leakage-safe partitions on every repetition:
+
+1. **Router training** fits one correctness model per cascade stage. Stage features are
+   aggregate confidence, margin, entropy, simulated-annotator vote support and probability
+   dispersion, response-order consistency and probability shift, agreement among models
+   already visited, and earlier-stage confidence summaries.
+2. **Certification** freezes those models and the candidate threshold grid, then applies
+   fixed-sequence tests to the risk of the complete routing policy. The policy receives the
+   full `delta` once because this is one end-to-end claim.
+3. **Testing** measures selective accuracy, macro source accuracy, coverage, macro source
+   coverage, model composition, and how often the target accuracy is met.
+
+The experiment compares `global_raw_confidence`, which routes using the original model
+confidence, with `global_learned_router`, which routes using predicted correctness. Both
+use the same global certification procedure. This separates the gain from avoiding the
+per-stage `delta` split from the gain due to richer VLM reliability signals.
+
+All inputs come from the existing `*.eval_pool.jsonl` files. Evaluation never loads a
+model, changes a judgment cache, or scores an additional example. The result records
+`uses_cached_judgements_only: true` and `new_model_inference_required: false` and is saved
+as `global_router_comparison.json` beside the baseline result.
+
+The result also reports `mean_judges_called` and `early_exit_rate`. These expose whether
+extra coverage comes from useful early routing or simply sending nearly every example to
+the final model.
+
+This is an experimental paper method. Its guarantee applies to the frozen routing policy
+and the group-safe split procedure used here. The final comparison should report both the
+empirical guarantee-success rate and coverage over all 1,000 repetitions.
+
 ## Run
 
 ```shell

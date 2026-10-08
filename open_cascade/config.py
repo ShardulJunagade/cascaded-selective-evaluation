@@ -71,6 +71,10 @@ class EvaluateConfig:
     output_dir: str = "./outputs"
     n_splits: int = 1000
     seed: int = 42
+    router_train_size: int = 200    # separate policy-learning split for global routing
+    router_l2: float = 0.1          # regularization for correctness-score models
+    router_min_selected: int = 30   # minimum certification examples above a threshold
+    router_thresholds: int = 101    # policy-split quantiles tested from strict to permissive
 
 
 @dataclass

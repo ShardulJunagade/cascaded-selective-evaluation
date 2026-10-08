@@ -22,3 +22,15 @@ once with `python -m pip install --no-cache-dir ninja`.
 The runner reuses `data/vlm_v2_small_export`, model downloads, and compilation caches.
 It writes separate judge caches to `result/vlm_v2_fast_1k_n3_k1` and separate results
 under `outputs/vlm_v2_fast_{3judge,4judge}`. Interrupted scoring resumes by sample ID.
+
+After all judge caches exist, the fast 3-judge and 4-judge configs run two CPU-only
+evaluations: the baseline table and the end-to-end global router coverage experiment.
+Running `evaluate` again reads the cached JSONL files and performs no model inference:
+
+```bash
+python -u -m open_cascade evaluate configs/vlm_v2_fast_4judge.yaml
+```
+
+The new result is written to
+`outputs/vlm_v2_fast_4judge/global_router_comparison.json`. For a quick check, append
+`--set evaluate.n_splits=3`; retain the configured 1,000 splits for reported numbers.

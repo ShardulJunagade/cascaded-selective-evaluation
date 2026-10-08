@@ -18,13 +18,15 @@ fields to EvaluateConfig in open_cascade/config.py.
 from open_cascade.experiments.single_split import run_alpha_sweep, run_cascade
 from open_cascade.experiments.multi_split import run_guarantee_success
 from open_cascade.experiments.baselines import run_baseline_comparison
+from open_cascade.experiments.global_router import run_global_router_comparison
 
 EXPERIMENTS = {
     "cascade": run_cascade,
     "alpha_sweep": run_alpha_sweep,
     "guarantee_success": run_guarantee_success,
     "baseline_comparison": run_baseline_comparison,
+    "global_router_comparison": run_global_router_comparison,
 }
 
 # These experiments consume the cached eval_pool rather than a fixed split pair.
-POOL_EXPERIMENTS = {"guarantee_success", "baseline_comparison"}
+POOL_EXPERIMENTS = {"guarantee_success", "baseline_comparison", "global_router_comparison"}

@@ -22,6 +22,6 @@ cascade:
   split_delta: true
 
 evaluate:
-  experiments: [baseline_comparison]
+  experiments: [baseline_comparison, global_router_comparison]
   n_splits: 1000
   seed: 42
