@@ -93,8 +93,9 @@ When per-run details are available, the same result also contains:
 
 For every policy, the saved result contains mean and standard deviation of overall
 accuracy, macro source accuracy, coverage, macro source coverage, per-source results, and
-guarantee success rate. The complete per-split records are retained for confidence
-intervals and plots in the report.
+guarantee success rate. Mean accuracy excludes splits where the policy abstains on every
+test item, and `nonempty_split_rate` reports how often a policy answers at least one item.
+The complete per-split records are retained for confidence intervals and plots in the report.
 
 ## Run
 

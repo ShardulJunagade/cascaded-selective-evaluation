@@ -154,15 +154,22 @@ def _aggregate_policy(rows: List[Dict]) -> Dict:
                 per_source[source]["agreement"].append(values["agreement"])
             per_source[source]["coverage"].append(values["coverage"])
 
-    def stats(field: str) -> Dict[str, float]:
-        values = [row[field] for row in rows if row[field] is not None]
+    def stats(field: str, require_coverage: bool = False) -> Dict[str, float]:
+        values = [
+            row[field] for row in rows
+            if row[field] is not None and (not require_coverage or row["coverage"] > 0)
+        ]
         if not values:
             return {"mean": None, "std": None}
         return {"mean": mean(values), "std": pstdev(values)}
 
     return {
         "guarantee_success_rate": mean(row["met_target"] for row in rows),
-        "agreement": stats("agreement"),
+        "nonempty_split_rate": mean(row["coverage"] > 0 for row in rows),
+        # Empty selections have no defined conditional accuracy. The lower-level
+        # metric returns 1.0 for compatibility with the released implementation,
+        # but including those values here inflates repeated-split summaries.
+        "agreement": stats("agreement", require_coverage=True),
         "macro_source_agreement": stats("macro_source_agreement"),
         "coverage": stats("coverage"),
         "macro_source_coverage": stats("macro_source_coverage"),
@@ -257,14 +264,18 @@ def run_baseline_comparison(config, pool: Judgements, raw_rows=None) -> Dict:
             })
 
     policies = {name: _aggregate_policy(rows) for name, rows in policy_rows.items()}
-    print(f"{'policy':<45} {'accuracy':>9} {'macro':>9} {'coverage':>9} {'success':>9}")
-    print("-" * 85)
+    print(f"{'policy':<45} {'accuracy':>9} {'macro':>9} {'coverage':>9} "
+          f"{'nonempty':>9} {'success':>9}")
+    print("-" * 95)
     for name, summary in policies.items():
+        accuracy = summary["agreement"]["mean"]
+        accuracy_text = f"{accuracy:.4f}" if accuracy is not None else "n/a"
         macro = summary["macro_source_agreement"]["mean"]
         macro_text = f"{macro:.4f}" if macro is not None else "n/a"
-        print(f"{name:<45} {summary['agreement']['mean']:>9.4f} "
+        print(f"{name:<45} {accuracy_text:>9} "
               f"{macro_text:>9} "
               f"{summary['coverage']['mean']:>9.4f} "
+              f"{summary['nonempty_split_rate']:>9.4f} "
               f"{summary['guarantee_success_rate']:>9.4f}")
 
     return {
