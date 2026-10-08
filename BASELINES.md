@@ -74,6 +74,7 @@ leakage-safe splits for every policy:
 | `heuristic:<strongest>` | strongest judge | accept when confidence is at least `1 - alpha` |
 | `cascaded_heuristic` | full cascade | apply the same heuristic at every stage |
 | `point_estimate:<judge>` | each judge separately | calibrate on empirical selective risk, without a confidence bound |
+| `selective:<judge>` | each judge separately | fixed-sequence testing with the full error budget; diagnoses the coverage cost of cascading |
 | `cascaded_selective` | full cascade | fixed-sequence testing with the binomial upper bound |
 
 If a calibration split contains no threshold whose upper confidence bound reaches the

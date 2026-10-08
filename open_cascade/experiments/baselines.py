@@ -29,6 +29,12 @@ def _policies(judges: Sequence[str]) -> List[Policy]:
         (f"point_estimate:{judge}", [judge], "point_estimate_calibration")
         for judge in judges
     )
+    # A statistically certified single-judge selector isolates the benefit of
+    # cascading from the cost of splitting delta across multiple stages.
+    policies.extend(
+        (f"selective:{judge}", [judge], "fixed_sequence_testing")
+        for judge in judges
+    )
     # Proposed method, included here so every number uses identical splits.
     policies.append(("cascaded_selective", list(judges), "fixed_sequence_testing"))
     return policies

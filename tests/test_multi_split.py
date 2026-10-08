@@ -123,6 +123,7 @@ def test_baseline_comparison_reports_common_metrics():
     assert set(result["policies"]) == {
         "direct:small", "direct:large", "heuristic:large", "cascaded_heuristic",
         "point_estimate:small", "point_estimate:large", "cascaded_selective",
+        "selective:small", "selective:large",
     }
     direct = result["policies"]["direct:large"]
     assert direct["coverage"]["mean"] == 1.0
