@@ -82,8 +82,9 @@ certificate. The original certified cascade exceeds the accuracy target when it 
 but its per-stage allocation of `delta/4` makes the thresholds conservative and leaves
 many splits with no selected test examples.
 
-The three-judge chain showed this effect more strongly. `cascaded_selective` reached
-99.50% accuracy but only 0.36% mean coverage and answered in 3.7% of splits. Adding
+The three-judge chain showed this effect more strongly. After excluding empty selections
+from the accuracy average, `cascaded_selective` reached 86.45% accuracy but only 0.36%
+mean coverage and answered in 3.7% of splits. Adding
 InternVL3 raised certified coverage to 13.06%, showing that judge strength and confidence
 quality materially affect selective coverage.
 
