@@ -21,7 +21,8 @@ def test_config_is_valid(path):
     config = load_config(path)
 
     assert config.name == path.stem, "keep `name` equal to the file name"
-    assert config.data.builder in BUILDERS
+    # "prebuilt" = splits already exported (by get_data.py); prepare-data is skipped
+    assert config.data.builder in BUILDERS or config.data.builder == "prebuilt"
     assert config.cascade.threshold_method in THRESHOLD_METHODS
     for experiment in config.evaluate.experiments:
         assert experiment in EXPERIMENTS

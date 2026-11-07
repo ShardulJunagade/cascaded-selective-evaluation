@@ -41,6 +41,13 @@ class JudgeConfig:
 
     extra_llm_kwargs: Dict = field(default_factory=dict)  # passed straight to vllm.LLM
 
+    # Hosted judges (judges/api.py). When `provider` is set, no local model is loaded:
+    # `hf_name` is the provider's model id, and the vLLM fields above are ignored.
+    # `provider` is a key of judges.api.PROVIDERS ("openrouter", "gemini").
+    # `api` overrides judges.api.DEFAULT_API_OPTIONS (confidence mode, max_tokens, ...).
+    provider: Optional[str] = None
+    api: Dict = field(default_factory=dict)
+
 
 JUDGE_REGISTRY: Dict[str, JudgeConfig] = {
     # -- the paper's open judge; also the correctness anchor against ./result/*.jsonl -- #
@@ -90,6 +97,64 @@ JUDGE_REGISTRY: Dict[str, JudgeConfig] = {
         modality="vlm",
         max_model_len=VLM_MAX_MODEL_LEN,
         tensor_parallel_size=4,
+    ),
+
+    # ---------------------- hosted (API) judges, judges/api.py --------------------- #
+    # Kimi K2.5 via OpenRouter (OPENROUTER_API_KEY). Text + image input.
+    # Confidence from the A/B token logprobs. Pinned to Novita, measured 2026-11-07 with
+    # `test_api_judge.py --probe`: only Novita and Venice return logprobs for this model,
+    # and Venice ignores every way of disabling thinking (it reasons in the answer text
+    # and runs out of tokens before the verdict). Novita honours reasoning.enabled=false
+    # and answers "[[A]]" in 4 tokens. No fallback, so a Novita outage fails loudly rather
+    # than silently routing to Venice. Re-run --probe if this starts failing.
+    "kimi-k2.5": JudgeConfig(
+        hf_name="moonshotai/kimi-k2.5",
+        modality="vlm",
+        provider="openrouter",
+        api={
+            "confidence": "logprobs",
+            "max_tokens": 16,
+            "extra_body": {"reasoning": {"enabled": False},
+                           "provider": {"order": ["novita"], "allow_fallbacks": False,
+                                        "require_parameters": True}},
+        },
+    ),
+    # Fallback if no logprob-capable provider is up: confidence = vote share across
+    # the 2N simulations (each a hard verdict), so it is coarser.
+    "kimi-k2.5-votes": JudgeConfig(
+        hf_name="moonshotai/kimi-k2.5",
+        modality="vlm",
+        provider="openrouter",
+        api={
+            "confidence": "votes",
+            "max_tokens": 16,
+            "extra_body": {"reasoning": {"enabled": False}},
+        },
+    ),
+    # Gemini direct from Google AI Studio (GEMINI_API_KEY), through its OpenAI-compatible
+    # endpoint. Gemini does not expose logprobs there or on OpenRouter, so it uses votes.
+    # Gemini thinks before answering and thinking tokens count against max_tokens, so
+    # max_tokens is kept generous.
+    "gemini-flash": JudgeConfig(
+        hf_name="gemini-flash-latest",
+        modality="vlm",
+        provider="gemini",
+        api={
+            "confidence": "votes",
+            "max_tokens": 2048,
+            "extra_body": {"reasoning_effort": "low"},
+        },
+    ),
+    # The same model routed through OpenRouter, if you have credit there but no Google key.
+    "gemini-flash-openrouter": JudgeConfig(
+        hf_name="~google/gemini-flash-latest",
+        modality="vlm",
+        provider="openrouter",
+        api={
+            "confidence": "votes",
+            "max_tokens": 2048,
+            "extra_body": {"reasoning": {"effort": "low"}},
+        },
     ),
 }
 

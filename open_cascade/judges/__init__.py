@@ -3,6 +3,7 @@
     base.py   BaseJudge -- vLLM setup, label-token lookup, scoring, A/B-swap averaging
     text.py   TextJudge -- text prompts (the paper's setting)
     vlm.py    VLMJudge  -- text + image prompts
+    api.py    ApiJudge  -- hosted models over an OpenAI-compatible API (OpenRouter, Gemini)
 
 To add a judge *model*, add an entry to open_cascade/registry.py.
 To add a new *kind* of judge (e.g. a different prompt format or modality), subclass
@@ -21,8 +22,17 @@ JUDGE_CLASSES = {
 
 
 def build_judge(model_name: str, **kwargs) -> BaseJudge:
-    """Load the judge registered as `model_name`. kwargs go to the judge class."""
+    """Load the judge registered as `model_name`. kwargs go to the judge class.
+
+    Judges with a `provider` (hosted APIs) are served by judges.api.ApiJudge regardless of
+    modality; everything else is loaded locally with vLLM.
+    """
     config = resolve_judge(model_name)
+    if config.provider is not None:
+        from open_cascade.judges.api import ApiJudge
+
+        kwargs.pop("released_mistral_compat", None)
+        return ApiJudge(model_name, config, **kwargs)
     if config.modality not in JUDGE_CLASSES:
         raise ValueError(f"Judge '{model_name}' has unknown modality '{config.modality}'. "
                          f"Known: {sorted(JUDGE_CLASSES)}")

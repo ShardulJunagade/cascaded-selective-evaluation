@@ -26,14 +26,18 @@ class DataConfig:
     calibration_size: int = 500
     seed: int = 42
     options: Dict[str, Any] = field(default_factory=dict)  # builder-specific settings
+    # Where the splits sit under out_dir. "" = directly in out_dir, as in the corpus that
+    # get_data.py exports to data/vlm_v2_export/ (use builder: prebuilt for that).
+    split_subdir: str = "split"
+    fewshot_name: str = "fewshot.jsonl"  # e.g. fewshot.ind.jsonl for Simulated Annotators (Ind.)
 
     @property
     def split_dir(self) -> Path:
-        return Path(self.out_dir) / "split"
+        return Path(self.out_dir) / self.split_subdir
 
     @property
     def fewshot_file(self) -> Path:
-        return self.split_dir / "fewshot.jsonl"
+        return self.split_dir / self.fewshot_name
 
     def split_file(self, split: str) -> Path:
         return self.split_dir / f"{split}.jsonl"
@@ -45,6 +49,7 @@ class ScoringConfig:
 
     splits: List[str] = field(default_factory=lambda: ["calibration", "test"])
     chunk_size: int = 64            # samples per vLLM call; each expands to 2N prompts
+    max_samples: Optional[int] = None  # score only the first n of each split (API budgets)
     max_fewshot_examples: Optional[int] = None  # cap on K at scoring time; None = use all
     prefix_caching: bool = True
     resume: bool = True             # continue a partly written result file

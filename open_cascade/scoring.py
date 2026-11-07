@@ -5,7 +5,7 @@ the output also drops straight into their calibration code. Scoring is resumable
 scored instances are skipped, so a preempted job continues where it stopped.
 """
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import numpy as np
 from tqdm import tqdm
@@ -15,9 +15,12 @@ from open_cascade.data import load_fewshot, read_jsonl, sample_key, write_jsonl
 from open_cascade.registry import resolve_judge
 
 
-def pending_samples(in_file: Path, out_file: Path) -> List[Dict]:
-    """Instances in `in_file` that are not yet in `out_file`."""
+def pending_samples(in_file: Path, out_file: Path,
+                    max_samples: Optional[int] = None) -> List[Dict]:
+    """Instances in `in_file` (its first `max_samples`, if set) not yet in `out_file`."""
     samples = read_jsonl(in_file)
+    if max_samples is not None:
+        samples = samples[:max_samples]
     if not out_file.exists():
         return samples
 
@@ -69,7 +72,7 @@ def score_judge(config: ExperimentConfig, judge_name: str) -> None:
             out_file = config.result_file(judge_name, split)
             print(f"\n[{split}] {in_file} -> {out_file}")
 
-            samples = pending_samples(in_file, out_file)
+            samples = pending_samples(in_file, out_file, scoring.max_samples)
             if not samples:
                 print("  nothing to do")
                 continue

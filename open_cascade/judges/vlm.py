@@ -11,6 +11,7 @@ from model.vlm_prompts import (
     fewshot_query_prompt,
     system_prompt,
 )
+from open_cascade.data import preferred_index
 from open_cascade.judges.base import ASSISTANT_PREFIX, BaseJudge
 from open_cascade.registry import JudgeConfig
 
@@ -92,7 +93,7 @@ class VLMJudge(BaseJudge):
         images: List[Image.Image] = []
 
         for example in fewshot_examples:
-            preferred_response = "[[A]]" if example["preferences"]["human"] == 1 else "[[B]]"
+            preferred_response = "[[A]]" if preferred_index(example) == 1 else "[[B]]"
             image = self._sample_image(example)
             images.append(image)
             content.extend([

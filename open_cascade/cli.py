@@ -27,6 +27,9 @@ from open_cascade.config import ExperimentConfig, load_config
 def cmd_prepare_data(config: ExperimentConfig) -> None:
     from open_cascade.builders import get_builder
 
+    if config.data.builder == "prebuilt":
+        raise SystemExit(f"{config.data.out_dir} is prebuilt (by `python get_data.py`); "
+                         "there is nothing for prepare-data to do. Go straight to `score`.")
     print(f"Building '{config.data.builder}' dataset into {config.data.out_dir}")
     get_builder(config.data).build()
 
@@ -96,8 +99,9 @@ def cmd_list() -> None:
 
     print("Judges (open_cascade/registry.py):")
     for name, judge in JUDGE_REGISTRY.items():
-        print(f"  {name:<26} {judge.modality:<5} {judge.hf_name}  "
-              f"(GPUs: {judge.tensor_parallel_size})")
+        where = (f"API: {judge.provider}" if judge.provider
+                 else f"GPUs: {judge.tensor_parallel_size}")
+        print(f"  {name:<26} {judge.modality:<5} {judge.hf_name}  ({where})")
     print("\nDataset builders (open_cascade/builders/):")
     for name, cls in BUILDERS.items():
         print(f"  {name:<26} {cls.__name__}")
