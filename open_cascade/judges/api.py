@@ -40,7 +40,8 @@ from typing import Dict, List, Optional, Tuple
 import httpx
 
 from open_cascade.data import preferred_index
-from open_cascade.judges.base import LABELS, LabelProbs, average_simulations, response_orderings
+from open_cascade.judges.base import (LABELS, LabelProbs, average_simulations,
+                                      response_orderings, simulation_details)
 from open_cascade.registry import JudgeConfig
 
 
@@ -82,8 +83,9 @@ ANSWER_INSTRUCTION = '\n\nAnswer with exactly "[[A]]" or "[[B]]" and nothing els
 VERDICT_RE = re.compile(r"\[\[\s*([AB])\s*\]\]")
 LETTER_AFTER_BRACKETS_RE = re.compile(r"\[\[\s*([AB])")
 
-# Failing this many requests in a row, with none succeeding, aborts the run: something is
-# misconfigured (no logprobs returned, model off-format) and continuing just burns credit.
+# Failing this many requests in a row aborts the run: something is misconfigured or down
+# (no logprobs returned, model off-format, provider outage) and continuing just burns credit
+# or silently drops samples.
 FAIL_FAST_AFTER = 20
 
 
@@ -300,6 +302,10 @@ class ApiJudge:
                 if response.status_code in (401, 403):
                     raise ApiAuthError(f"{self.config.provider} rejected the API key "
                                        f"({response.status_code}): {response.text[:300]}")
+                if response.status_code == 402:
+                    raise ApiAuthError(f"{self.config.provider}: out of credits (402). Top up, "
+                                       f"then re-run; scored samples are kept. "
+                                       f"{response.text[:300]}")
                 if response.status_code == 200:
                     data = response.json()
                     # OpenRouter reports upstream failures as 200 + {"error": ...}
@@ -331,10 +337,14 @@ class ApiJudge:
             if len(self.failure_examples) < 5:
                 self.failure_examples.append(f"{reason}: {detail}"[:400])
             self._consecutive_failures += 1
-            abort = self.stats["ok"] == 0 and self._consecutive_failures >= FAIL_FAST_AFTER
+            # also mid-run: a provider outage would otherwise silently drop every remaining
+            # sample. Aborting is safe, since `score` resumes where it stopped.
+            abort = self._consecutive_failures >= FAIL_FAST_AFTER
         if abort:
             raise RuntimeError(
-                f"First {FAIL_FAST_AFTER} requests to '{self.model_name}' all failed. "
+                f"{FAIL_FAST_AFTER} requests in a row to '{self.model_name}' failed "
+                f"({self.stats['ok']} succeeded before). Scored samples are saved; re-run "
+                f"`score` to resume once fixed. "
                 f"Reasons: {self.failure_reasons}. Examples:\n  "
                 + "\n  ".join(self.failure_examples)
                 + "\nIf the reason is 'no logprobs', use the -votes variant of this judge.")
@@ -405,23 +415,37 @@ class ApiJudge:
     def simulate_annotators_batch(self, samples: List[Dict],
                                   fewshot_examples_list: List[List[Dict]]) -> List[List[float]]:
         """`[P(preference=1), P(preference=2)]` per sample (`[]` if every simulation failed)."""
+        return self.simulate_annotators_batch_with_details(samples, fewshot_examples_list)[0]
+
+    def simulate_annotators_batch_with_details(
+            self, samples: List[Dict], fewshot_examples_list: List[List[Dict]]
+    ) -> Tuple[List[List[float]], List[Dict]]:
+        """Aggregate probabilities plus each simulation's (annotator, ordering, probs).
+
+        The per-simulation records are what the judge-setup baselines (vanilla_single,
+        position_swap, swap_consistency, prompt_order_vote, consistency_escalation) and the
+        learned router's reliability features are computed from; without them those metrics
+        are missing for this judge.
+        """
         if self.max_fewshot_examples is not None:
             fewshot_examples_list = [examples[:self.max_fewshot_examples]
                                      for examples in fewshot_examples_list]
 
         jobs, provenance = [], []
-        for fewshot_examples in fewshot_examples_list:
+        for annotator, fewshot_examples in enumerate(fewshot_examples_list):
             for sample_idx, sample in enumerate(samples):
                 for ordering, (a, b) in enumerate(response_orderings(sample)):
                     jobs.append(self.build_messages(sample, a, b, fewshot_examples))
-                    provenance.append((sample_idx, ordering))
+                    provenance.append((sample_idx, annotator, ordering))
 
         with ThreadPoolExecutor(max_workers=self.options["concurrency"]) as pool:
             scored = list(pool.map(self.score_messages, jobs))
 
-        results = average_simulations(len(samples), provenance, scored)
+        aggregate_provenance = [(sample_idx, ordering) for sample_idx, _, ordering in provenance]
+        results = average_simulations(len(samples), aggregate_provenance, scored)
+        details = simulation_details(len(samples), provenance, scored)
         assert len(results) == len(samples)
-        return results
+        return results, details
 
     # -------------------------------------------------------------- reporting
     def usage_summary(self) -> str:

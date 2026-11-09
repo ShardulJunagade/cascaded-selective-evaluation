@@ -4,6 +4,7 @@ Writes `{result_dir}/{judge}.{split}.jsonl`, the same format the authors' script
 the output also drops straight into their calibration code. Scoring is resumable: already
 scored instances are skipped, so a preempted job continues where it stopped.
 """
+import json
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -15,16 +16,43 @@ from open_cascade.data import load_fewshot, read_jsonl, sample_key, write_jsonl
 from open_cascade.registry import resolve_judge
 
 
-def pending_samples(in_file: Path, out_file: Path,
-                    max_samples: Optional[int] = None) -> List[Dict]:
-    """Instances in `in_file` (its first `max_samples`, if set) not yet in `out_file`."""
+def has_details(row: Dict) -> bool:
+    """Whether a cached row carries per-simulation records (`judge_details.simulations`)."""
+    return bool((row.get("judge_details") or {}).get("simulations"))
+
+
+def pending_samples(in_file: Path, out_file: Path, max_samples: Optional[int] = None,
+                    rescore_missing_details: bool = False) -> List[Dict]:
+    """Instances in `in_file` (its first `max_samples`, if set) not yet in `out_file`.
+
+    Rows scored before per-simulation details were recorded only have aggregate `probs`,
+    so the judge-setup baselines and learned-router features cannot use them. With
+    `rescore_missing_details`, those rows are moved to `<out_file>.no_details.bak` and
+    scored again; otherwise they are kept and a warning is printed.
+    """
     samples = read_jsonl(in_file)
     if max_samples is not None:
         samples = samples[:max_samples]
     if not out_file.exists():
         return samples
 
-    done = {sample_key(s) for s in read_jsonl(out_file)}
+    existing = read_jsonl(out_file)
+    stale = [row for row in existing if not has_details(row)]
+    if stale and rescore_missing_details:
+        backup = out_file.with_name(out_file.name + ".no_details.bak")
+        write_jsonl(existing, backup)
+        existing = [row for row in existing if has_details(row)]
+        with open(out_file, "w", encoding="utf-8", newline="\n") as f:  # may be empty
+            f.writelines(json.dumps(row) + "\n" for row in existing)
+        print(f"  {len(stale)} rows lack judge_details: re-scoring them "
+              f"(originals backed up to {backup})")
+    elif stale:
+        print(f"  WARNING: {len(stale)}/{len(existing)} rows in {out_file} lack "
+              f"judge_details, so judge-setup baselines and learned-router features will "
+              f"be missing for this judge. Set scoring.rescore_missing_details=true to "
+              f"re-score them.")
+
+    done = {sample_key(s) for s in existing}
     remaining = [s for s in samples if sample_key(s) not in done]
     print(f"  resuming: {len(samples) - len(remaining)} already scored, "
           f"{len(remaining)} remaining")
@@ -72,7 +100,8 @@ def score_judge(config: ExperimentConfig, judge_name: str) -> None:
             out_file = config.result_file(judge_name, split)
             print(f"\n[{split}] {in_file} -> {out_file}")
 
-            samples = pending_samples(in_file, out_file, scoring.max_samples)
+            samples = pending_samples(in_file, out_file, scoring.max_samples,
+                                      scoring.rescore_missing_details)
             if not samples:
                 print("  nothing to do")
                 continue
@@ -84,14 +113,16 @@ def score_judge(config: ExperimentConfig, judge_name: str) -> None:
             n_dropped = 0
             for start in tqdm(range(0, len(samples), scoring.chunk_size), desc=split):
                 chunk = samples[start:start + scoring.chunk_size]
-                probs_list = judge.simulate_annotators_batch(chunk, fewshot_examples_list)
+                probs_list, details_list = judge.simulate_annotators_batch_with_details(
+                    chunk, fewshot_examples_list)
 
                 scored = []
-                for sample, probs in zip(chunk, probs_list):
+                for sample, probs, details in zip(chunk, probs_list, details_list):
                     if not is_usable(probs):
                         n_dropped += 1
                         continue
                     sample["probs"] = probs
+                    sample["judge_details"] = details
                     scored.append(sample)
 
                 write_jsonl(scored, out_file, mode="a")

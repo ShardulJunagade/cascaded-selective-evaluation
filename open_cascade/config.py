@@ -53,6 +53,9 @@ class ScoringConfig:
     max_fewshot_examples: Optional[int] = None  # cap on K at scoring time; None = use all
     prefix_caching: bool = True
     resume: bool = True             # continue a partly written result file
+    # re-score cached rows that have only aggregate probs (no judge_details.simulations),
+    # which the judge-setup baselines and learned-router features need
+    rescore_missing_details: bool = False
     released_mistral_compat: bool = False  # text only: the released generate-and-parse path
 
 

@@ -180,6 +180,28 @@ def test_bad_key_raises():
         judge.simulate_annotators_batch([SAMPLE], FEWSHOT)
 
 
+def test_out_of_credits_raises():
+    judge = make_judge(lambda r: httpx.Response(402, text="Insufficient credits"))
+    with pytest.raises(ApiAuthError, match="out of credits"):
+        judge.simulate_annotators_batch([SAMPLE], FEWSHOT)
+
+
+def test_fails_fast_mid_run(monkeypatch):
+    # succeeds for a while, then the provider starts failing: must abort, not drop samples
+    monkeypatch.setattr(api.time, "sleep", lambda s: None)
+    calls = {"n": 0}
+
+    def handler(request):
+        calls["n"] += 1
+        return logprob_handler(request) if calls["n"] <= 8 else httpx.Response(400, text="bad")
+
+    judge = make_judge(handler, concurrency=1)
+    many = [dict(SAMPLE, instruction=f"q{i}") for i in range(20)]
+    with pytest.raises(RuntimeError, match="in a row"):
+        judge.simulate_annotators_batch(many, FEWSHOT)
+    assert judge.stats["ok"] == 8
+
+
 def test_missing_key_raises(monkeypatch):
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     with pytest.raises(ApiAuthError, match="OPENROUTER_API_KEY"):
@@ -240,3 +262,56 @@ def test_score_stage_with_api_judge(tmp_path, monkeypatch):
     out = read_jsonl(tmp_path / "result" / "test-judge.calibration.jsonl")
     assert [s["instruction"] for s in out] == ["q0", "q1", "q2"]
     assert all(s["probs"] == pytest.approx([0.9, 0.1]) for s in out)
+    # per-simulation records for the judge-setup baselines and learned router
+    for s in out:
+        sims = s["judge_details"]["simulations"]
+        assert {(r["annotator"], r["ordering"]) for r in sims} == {(0, 0), (0, 1)}
+        assert all(r["probs"] == pytest.approx([0.9, 0.1]) for r in sims)
+
+
+def test_score_rescores_rows_missing_details(tmp_path, monkeypatch):
+    data_dir = tmp_path / "export"
+    samples = [dict(SAMPLE, instruction=f"q{i}") for i in range(3)]
+    write_jsonl(samples, data_dir / "calibration.jsonl")
+    write_jsonl([{"annotator": "a", "evaluated_samples": FEWSHOT[0]}], data_dir / "fewshot.maj.jsonl")
+    out_file = tmp_path / "result" / "test-judge.calibration.jsonl"
+    # two rows from an older run: aggregate probs only
+    write_jsonl([dict(s, probs=[0.5, 0.5]) for s in samples[:2]], out_file)
+
+    def run(rescore):
+        config = config_from_dict({
+            "name": "t", "judges": ["test-judge"], "result_dir": str(tmp_path / "result"),
+            "data": {"builder": "prebuilt", "out_dir": str(data_dir), "split_subdir": "",
+                     "fewshot_name": "fewshot.maj.jsonl"},
+            "scoring": {"splits": ["calibration"], "rescore_missing_details": rescore},
+        })
+        score_judge(config, "test-judge")
+        return read_jsonl(out_file)
+
+    monkeypatch.setattr("open_cascade.scoring.resolve_judge",
+                        lambda name: JudgeConfig(hf_name="test/model", provider="openrouter"))
+    monkeypatch.setattr(judges_pkg, "build_judge",
+                        lambda name, **kwargs: make_judge(logprob_handler))
+
+    out = run(rescore=False)  # old rows kept, only q2 scored
+    assert sum("judge_details" in s for s in out) == 1 and len(out) == 3
+
+    out = run(rescore=True)
+    assert sorted(s["instruction"] for s in out) == ["q0", "q1", "q2"]
+    assert all(s["judge_details"]["simulations"] for s in out)
+    assert len(read_jsonl(out_file.with_name(out_file.name + ".no_details.bak"))) == 3
+
+
+def test_details_skip_failed_simulations():
+    calls = {"n": 0}
+
+    def handler(request):
+        calls["n"] += 1
+        return httpx.Response(200, json=completion("[[A]]" if calls["n"] % 2 else "dunno"))
+
+    judge = make_judge(handler, confidence="votes", concurrency=1)
+    probs, details = judge.simulate_annotators_batch_with_details([SAMPLE], FEWSHOT)
+    sims = details[0]["simulations"]
+    assert len(sims) == 2 and all(r["ordering"] == 0 for r in sims)  # odd calls = ordering 0
+    assert {r["annotator"] for r in sims} == {0, 1}
+    assert probs[0] == pytest.approx([1.0, 0.0])
