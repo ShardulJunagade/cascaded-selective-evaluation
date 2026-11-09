@@ -3,7 +3,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from open_cascade.judges.base import average_simulations, normalise_label_logprobs
+from open_cascade.judges.base import (
+    average_simulations,
+    normalise_label_logprobs,
+    simulation_details,
+)
 
 LABEL_IDS = {"A": 10, "B": 11}
 
@@ -39,3 +43,62 @@ def test_average_skips_failed_simulations():
     provenance = [(0, 0), (0, 1), (1, 0)]
     scored = [{"A": 0.9, "B": 0.1}, None, None]
     assert average_simulations(2, provenance, scored) == [pytest.approx([0.9, 0.1]), []]
+
+
+def test_details_preserve_annotator_and_map_swapped_ordering_back():
+    provenance = [(0, 0, 0), (0, 0, 1), (0, 1, 0)]
+    scored = [{"A": 0.8, "B": 0.2}, {"A": 0.4, "B": 0.6}, None]
+    details = simulation_details(1, provenance, scored)
+    assert details == [{"simulations": [
+        {"annotator": 0, "ordering": 0, "probs": [0.8, 0.2]},
+        {"annotator": 0, "ordering": 1, "probs": [0.6, 0.4]},
+    ]}]
+
+
+def test_vlm_fewshot_uses_annotator_preferences_without_human_key(monkeypatch):
+    from PIL import Image
+    from open_cascade.judges.vlm import VLMJudge
+
+    judge = VLMJudge.__new__(VLMJudge)
+    monkeypatch.setattr(judge, "_sample_image", lambda sample: Image.new("RGB", (1, 1)))
+    monkeypatch.setattr(judge, "_render", lambda content: str(content))
+    example = {"instruction": "example", "outputs": ["a", "b"],
+               "preferences": {"arena_user": 2}, "image_path": "unused"}
+    query = dict(example, instruction="query")
+    prompt, images = judge.build_prompt(query, "a", "b", [example])
+    assert "[[B]]" in prompt
+    assert len(images) == 2
+
+
+def test_phi_vlm_uses_tokenizer_template_and_numbered_image_markers():
+    from open_cascade.judges.vlm import VLMJudge
+
+    class FakeTokenizer:
+        def apply_chat_template(self, messages, tokenize, add_generation_prompt):
+            self.messages = messages
+            self.tokenize = tokenize
+            self.add_generation_prompt = add_generation_prompt
+            return "rendered<|endoftext|>"
+
+    judge = VLMJudge.__new__(VLMJudge)
+    judge.model_name = "phi-3.5-vision-instruct"
+    judge.tokenizer = FakeTokenizer()
+    # Phi's processor intentionally has no apply_chat_template method.
+    judge.processor = SimpleNamespace(tokenizer=judge.tokenizer)
+
+    rendered = judge._render([
+        {"type": "text", "text": "before"},
+        {"type": "image", "image": object()},
+        {"type": "text", "text": "middle"},
+        {"type": "image", "image": object()},
+        {"type": "text", "text": "after"},
+    ])
+
+    assert judge.tokenizer.messages[0]["role"] == "system"
+    assert judge.tokenizer.messages[1] == {
+        "role": "user",
+        "content": "before<|image_1|>\nmiddle<|image_2|>\nafter",
+    }
+    assert judge.tokenizer.tokenize is False
+    assert judge.tokenizer.add_generation_prompt is True
+    assert rendered == "rendered[["

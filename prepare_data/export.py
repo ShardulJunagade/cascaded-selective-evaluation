@@ -76,6 +76,7 @@ def to_instance(record: Record) -> Dict:
             "uid": record.uid,
             "dataset": record.source,
             "group_id": record.group_id,
+            "media_hash": record.media_hash,
             "modality": record.modality,
             "label": record.label,
             "label_origin": record.label_origin,

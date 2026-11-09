@@ -30,9 +30,12 @@ class DataConfig:
     # get_data.py exports to data/vlm_v2_export/ (use builder: prebuilt for that).
     split_subdir: str = "split"
     fewshot_name: str = "fewshot.jsonl"  # e.g. fewshot.ind.jsonl for Simulated Annotators (Ind.)
+    flat_files: bool = False        # prepared export: files directly under out_dir
 
     @property
     def split_dir(self) -> Path:
+        if self.flat_files:
+            return Path(self.out_dir)
         return Path(self.out_dir) / self.split_subdir
 
     @property
@@ -76,6 +79,12 @@ class EvaluateConfig:
     experiments: List[str] = field(default_factory=lambda: ["cascade"])
     alphas: List[float] = field(default_factory=lambda: [0.30, 0.25, 0.20, 0.15, 0.10, 0.05])
     output_dir: str = "./outputs"
+    n_splits: int = 1000
+    seed: int = 42
+    router_train_size: int = 200    # separate policy-learning split for global routing
+    router_l2: float = 0.1          # regularization for correctness-score models
+    router_min_selected: int = 30   # minimum certification examples above a threshold
+    router_thresholds: int = 101    # policy-split quantiles tested from strict to permissive
 
 
 @dataclass

@@ -8,7 +8,8 @@ Every function takes 1-D tensors, one entry per test instance, as stored in Casc
 
 Add new metrics here as plain functions (e.g. ECE / AUROC on `CascadeResult.phats`).
 """
-from typing import Dict, Sequence
+from collections import defaultdict
+from typing import Dict, Optional, Sequence
 
 import torch
 
@@ -41,4 +42,41 @@ def evaluator_composition(evaluators: torch.Tensor, judge_names: Sequence[str]) 
     return {
         name: float(torch.sum(evaluators == idx)) / n_evaluated
         for idx, name in enumerate(judge_names)
+    }
+
+
+def grouped_agreement(predictions: torch.Tensor, labels: torch.Tensor,
+                      evaluators: torch.Tensor, groups: Sequence[str]) -> Dict:
+    """Agreement and coverage per source, plus equally weighted macro averages."""
+    if len(groups) != labels.numel():
+        raise ValueError("groups must have one entry per prediction")
+    indices = defaultdict(list)
+    for index, group in enumerate(groups):
+        indices[str(group)].append(index)
+
+    per_group = {}
+    agreements = []
+    coverages = []
+    for group in sorted(indices):
+        idx = torch.tensor(indices[group], dtype=torch.long, device=labels.device)
+        selected = evaluators[idx] >= 0
+        n_total = len(indices[group])
+        n_selected = int(selected.sum())
+        agreement: Optional[float] = None
+        if n_selected:
+            agreement = float((predictions[idx][selected] == labels[idx][selected]).float().mean())
+            agreements.append(agreement)
+        group_coverage = n_selected / n_total
+        coverages.append(group_coverage)
+        per_group[group] = {
+            "agreement": agreement,
+            "coverage": group_coverage,
+            "n": n_total,
+            "n_evaluated": n_selected,
+        }
+
+    return {
+        "macro_agreement": sum(agreements) / len(agreements) if agreements else None,
+        "macro_coverage": sum(coverages) / len(coverages) if coverages else 0.0,
+        "per_group": per_group,
     }

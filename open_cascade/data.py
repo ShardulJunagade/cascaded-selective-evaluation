@@ -2,7 +2,8 @@
 
 An *instance* is one pairwise comparison (see builders/base.py for the full format). A
 *judgement* is an instance plus the judge's `probs`: `[P(outputs[0] preferred),
-P(outputs[1] preferred)]`, averaged over the simulated annotators.
+P(outputs[1] preferred)]`, averaged over the simulated annotators. New exports also retain
+the mapped per-annotator and per-order probabilities in `judge_details.simulations`.
 """
 import json
 import os
@@ -48,7 +49,7 @@ def preferred_index(sample: Dict) -> int:
 
 
 def strip_judgement(sample: Dict) -> Dict:
-    """Drop `probs`, leaving the raw instance."""
+    """Drop judge outputs, leaving the raw instance."""
     stripped = {field: sample[field] for field in INSTANCE_FIELDS}
     for field in OPTIONAL_INSTANCE_FIELDS:
         if field in sample:
