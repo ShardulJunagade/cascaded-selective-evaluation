@@ -286,6 +286,9 @@ for tag, name, label in runs:
                 row(text, s, (s.get("mean_judges_called") or {}).get("mean"))
 PY
 
+"${PYTHON}" scripts/api_round/tables_md.py --suffix "${SUFFIX}" \
+  || warn "could not write the Markdown tables (run scripts/api_round/tables_md.py by hand)"
+
 finish_step
 echo
-echo "All steps finished. Summary saved to outputs/api_round_summary.txt"
+echo "All steps finished. Summary: outputs/api_round_summary.txt   All tables: outputs/api_round_tables.md"

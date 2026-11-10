@@ -7,7 +7,10 @@ bash scripts/api_round/1_setup_env.sh        # packages, tests, network, HF logi
 bash scripts/api_round/2_build_data.sh       # download + rebuild data/vlm_v2_fast_export (CPU)
 bash scripts/api_round/3_run_experiments.sh  # smoke tests, paid API scoring, all evaluations
 bash scripts/api_round/status.sh             # progress, from any terminal
+python scripts/api_round/tables_md.py        # all finished tables -> outputs/api_round_tables.md
 ```
+
+`tables_md.py` can run at any time, including while experiments are still going. It includes every finished run, plus a **Kept** column (Success + (100 − Answered)). Kept counts splits where the method abstained on everything as safe, so compare that column with the 90% target.
 
 Each script writes a full log to `logs/<script>-<time>.log`. It also rewrites `logs/progress.log` after every step with the step that is running, the steps done or skipped and how long each took, and any warnings. `status.sh` adds the scored-pair count for each judge and which outputs exist.
 
