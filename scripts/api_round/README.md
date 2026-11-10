@@ -15,7 +15,7 @@ All scripts are safe to re-run. The download and scoring resume where they stopp
 
 Run `3_run_experiments.sh --help` for its options: `--yes`, `--quick`, `--skip-gpu`, `--force-eval` and `--smoke-pairs`.
 
-API keys are saved to `~/.config/cascade/api_keys.env` (chmod 600), outside the repo. Never commit them.
+Your Hugging Face token and API keys are saved to this folder's `.env`, which is gitignored and set to chmod 600. They apply only to this checkout. `HF_TOKEN` takes priority over any global `hf auth login`, and that global login is left unchanged. To enter a different Hugging Face token, run `RESET_HF_TOKEN=1 SKIP_INSTALL=1 bash scripts/api_round/1_setup_env.sh`. Never commit `.env`.
 
 | Run | Judges | Output |
 |---|---|---|

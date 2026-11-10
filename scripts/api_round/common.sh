@@ -22,8 +22,10 @@ EXPECTED_ROWS=1000
 API_CONFIG=configs/vlm_v2_fast_api.yaml
 OPEN_JUDGES=(granite-vision-3.3-2b qwen2.5-vl-3b-instruct phi-3.5-vision-instruct internvl3-8b)
 API_JUDGES=(kimi-k2.5 gemini-flash)
-# API keys live outside the repo (chmod 600) so they never reach git.
-KEY_FILE="${CASCADE_KEY_FILE:-${HOME}/.config/cascade/api_keys.env}"
+# Secrets (HF_TOKEN, OPENROUTER_API_KEY, GEMINI_API_KEY) live in this folder's .env
+# (gitignored, chmod 600), so they apply only to this checkout. HF_TOKEN overrides any
+# global `hf auth login` token for every command these scripts run.
+KEY_FILE="${CASCADE_KEY_FILE:-${REPO_ROOT}/.env}"
 PROGRESS_FILE="${REPO_ROOT}/logs/progress.log"   # *.log is gitignored
 
 mkdir -p logs outputs result
@@ -163,6 +165,12 @@ load_api_keys() {
   fi
 }
 
+load_api_keys   # every script sees this folder's HF_TOKEN and API keys
+
+has_local_hf_token() { [[ -n "${HF_TOKEN:-}" ]]; }
+hf_account() {
+  "${PYTHON}" -c "from huggingface_hub import whoami; print(whoami()['name'])" 2>/dev/null || echo "?"
+}
 has_openrouter_key() { [[ -n "${OPENROUTER_API_KEY:-}" ]]; }
 has_gemini_key() { [[ -n "${GEMINI_API_KEY:-}${GOOGLE_API_KEY:-}" ]]; }
 

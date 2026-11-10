@@ -21,8 +21,9 @@ small_ready() {
 step "Preflight: packages and Hugging Face token"
 "${PYTHON}" -c "import open_cascade, huggingface_hub, imagehash, pandas, pyarrow, PIL" \
   || die "packages missing. Run: bash scripts/api_round/1_setup_env.sh"
-"${PYTHON}" -c "from huggingface_hub import get_token; import sys; sys.exit(0 if get_token() else 1)" \
-  || die "no Hugging Face token. Run: bash scripts/api_round/1_setup_env.sh"
+has_local_hf_token \
+  || die "no HF_TOKEN in ${KEY_FILE}. Run: SKIP_INSTALL=1 bash scripts/api_round/1_setup_env.sh"
+echo "  Hugging Face account in use: $(hf_account)   (token from ${KEY_FILE})"
 df -h "${REPO_ROOT}" | sed 's/^/  /'
 
 # ----------------------------------------------------------------------------------------

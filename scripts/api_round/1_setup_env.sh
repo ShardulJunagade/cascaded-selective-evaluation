@@ -4,11 +4,13 @@
 #   bash scripts/api_round/1_setup_env.sh
 #
 # Run it with your environment active (conda/venv). Safe to re-run; it only installs what
-# is missing. It asks for a Hugging Face login and API keys if they are not set yet; keys
-# are saved to ~/.config/cascade/api_keys.env (chmod 600, outside the repo).
+# is missing. It asks for your Hugging Face token and API keys if they are not set yet and
+# saves them to this folder's .env (gitignored, chmod 600). They apply only to this folder:
+# HF_TOKEN overrides a global `hf auth login`, which is left untouched.
 #
 # Options (environment variables):
 #   SKIP_INSTALL=1   skip pip
+#   RESET_HF_TOKEN=1 ask for a new Hugging Face token even if .env already has one
 #   INSTALL_VLLM=1   also install vLLM (only needed to re-score the open judges on a GPU)
 #   REQ_FILE=...     install from this requirements file instead of requirements-open.txt
 #   PYTHON=...       interpreter to use (default: python)
@@ -133,24 +135,6 @@ if [[ "${avail_kb}" -lt $((15 * 1024 * 1024)) ]]; then
 fi
 
 # ----------------------------------------------------------------------------------------
-step "Hugging Face login and VisionArena access"
-has_hf_token() {
-  "${PYTHON}" -c "from huggingface_hub import get_token; import sys; sys.exit(0 if get_token() else 1)"
-}
-if ! has_hf_token; then
-  if [[ -t 0 ]]; then
-    echo "No Hugging Face token found. Paste one from https://huggingface.co/settings/tokens"
-    if command -v hf >/dev/null 2>&1; then hf auth login; else huggingface-cli login; fi
-  else
-    die "no Hugging Face token. Run 'hf auth login' and re-run this script."
-  fi
-fi
-has_hf_token || die "still no Hugging Face token after login"
-echo "Hugging Face token found"
-"${PYTHON}" -c "from run_cluster_benchmark import require_visionarena_access as check; check(); print('VisionArena (gated) access OK')"
-
-# ----------------------------------------------------------------------------------------
-step "API keys"
 save_key() {  # $1 = variable name, $2 = value
   mkdir -p "$(dirname "${KEY_FILE}")"
   (
@@ -162,7 +146,38 @@ save_key() {  # $1 = variable name, $2 = value
   )
   chmod 600 "${KEY_FILE}"
 }
-load_api_keys
+
+# ----------------------------------------------------------------------------------------
+step "Hugging Face token (this folder only) and VisionArena access"
+# The token is kept in this folder's .env as HF_TOKEN, which overrides any global
+# `hf auth login` token, so the global login is neither used nor changed.
+if [[ "${RESET_HF_TOKEN:-0}" == 1 ]]; then
+  unset HF_TOKEN
+fi
+if ! has_local_hf_token; then
+  if [[ -t 0 ]]; then
+    echo "  No HF_TOKEN in ${KEY_FILE} yet."
+    echo "  Create a Read token for YOUR account at https://huggingface.co/settings/tokens"
+    read -r -s -p "  Paste your Hugging Face token (input hidden): " value
+    echo
+    [[ -n "${value}" ]] || die "no Hugging Face token entered"
+    export HF_TOKEN="${value}"
+    [[ "$(hf_account)" != "?" ]] || die "Hugging Face rejected that token; check it was copied in full"
+    save_key HF_TOKEN "${value}"
+    echo "  saved HF_TOKEN to ${KEY_FILE} (used only by this folder)"
+  else
+    die "no HF_TOKEN in ${KEY_FILE}; run this script in a terminal to enter it"
+  fi
+fi
+account="$(hf_account)"
+echo "  Hugging Face account in use: ${account}   (token from ${KEY_FILE})"
+if ! "${PYTHON}" -c "from run_cluster_benchmark import require_visionarena_access as check; check()"; then
+  die "account '${account}' cannot read VisionArena yet. Open https://huggingface.co/datasets/lmarena-ai/VisionArena-Battle signed in as '${account}', accept the terms / request access, wait until the page says access is granted, then re-run. To enter a different token: RESET_HF_TOKEN=1 SKIP_INSTALL=1 bash scripts/api_round/1_setup_env.sh"
+fi
+echo "  VisionArena (gated) access OK"
+
+# ----------------------------------------------------------------------------------------
+step "API keys"
 for var in OPENROUTER_API_KEY GEMINI_API_KEY; do
   if [[ -n "${!var:-}" ]]; then
     echo "  ${var}: set"
