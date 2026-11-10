@@ -1,0 +1,27 @@
+# Requirements for the open-model replication (open_cascade/).
+# The authors' requirements.txt is left untouched.
+
+# --- core: calibration + decision rule. No GPU, no API key. Runs anywhere. ---
+numpy
+scipy          # used by cascaded_evaluation/util.py but absent from requirements.txt
+torch
+pyyaml         # experiment configs
+tqdm
+datasets
+pillow
+pytest         # python -m pytest
+
+# --- dataset pipeline (prepare_data/). CPU only, runs on Windows too. ---
+huggingface_hub   # snapshot_download for the raw sources
+imagehash         # perceptual hashing for cross-source dedup
+pandas            # VisIT-Bench ships its judgments as CSV
+pyarrow           # parquet shards
+
+# --- scoring judges locally. Linux only: vLLM has no Windows build. ---
+# Keep these together. vLLM 0.27.1 requires Transformers 5, while Transformers
+# 5.18 renamed a Pixtral class that this vLLM release imports for LlavaNext.
+transformers==5.5.3
+ninja             # FlashInfer JIT kernels compiled during vLLM engine warmup
+
+# --- tests ---
+pytest
