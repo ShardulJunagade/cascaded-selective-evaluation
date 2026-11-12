@@ -1,0 +1,43 @@
+Target: agreement >= 85% (alpha 0.15) with probability 0.9 (delta 0.1).
+Numbers are means over splits, in %. 'calls' = mean judges queried per pair.
+
+E0  4 open judges   (outputs/vlm_v2_fast_4judge/)
+    not run
+
+E1  Kimi   (outputs/fast_api_kimi/)
+    method                              agree   cover   guar.  calls
+    Trust or Escalate (per-stage)       89.26   68.36   90.30      -
+    heuristic cascade (no guarantee)    91.59   61.36  100.00      -
+    best certified single: kimi-k2.5    89.26   68.36   90.30      -
+    end-to-end router: raw conf.        88.93   69.99   88.90   1.00
+    end-to-end router: learned          88.94   69.40   88.40   1.00
+
+E2  Gemini   (outputs/fast_api_gemini/)
+    method                              agree   cover   guar.  calls
+    Trust or Escalate (per-stage)       86.82   52.20   49.00      -
+    heuristic cascade (no guarantee)    88.39   88.29  100.00      -
+    best certified single: gemini-flas  86.82   52.20   49.00      -
+    end-to-end router: raw conf.        86.79   53.77   48.90   1.00
+    end-to-end router: learned          86.91   53.49   49.60   1.00
+
+E3  Kimi -> Gemini   (outputs/fast_api_kimi_gemini/)
+    method                              agree   cover   guar.  calls
+    Trust or Escalate (per-stage)       91.13   57.98   94.60      -
+    heuristic cascade (no guarantee)    87.57   91.99  100.00      -
+    best certified single: kimi-k2.5    89.26   68.36   90.30      -
+    end-to-end router: raw conf.        86.66   53.69   48.50   1.69
+    end-to-end router: learned          88.63   76.96   84.10   1.41
+
+E3b Gemini -> Kimi   (outputs/fast_api_gemini_kimi/)
+    method                              agree   cover   guar.  calls
+    Trust or Escalate (per-stage)       90.38   66.85   93.00      -
+    heuristic cascade (no guarantee)    87.56   91.99  100.00      -
+    best certified single: kimi-k2.5    89.26   68.36   90.30      -
+    end-to-end router: raw conf.        86.52   54.64   45.70   1.47
+    end-to-end router: learned          90.03   72.34   83.60   1.52
+
+E4  4 open + Kimi + Gemini   (outputs/fast_mixed_6judge/)
+    not run
+
+E5  4 open + Kimi   (outputs/fast_mixed_5judge_kimi/)
+    not run
