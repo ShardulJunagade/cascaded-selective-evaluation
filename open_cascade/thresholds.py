@@ -11,8 +11,7 @@ A threshold method is a plain function
   delta   error level available to *this* judge (already split across the cascade)
 
 The cascade only passes a judge the calibration instances every earlier judge abstained on.
-Return None when there is too little data to pick a threshold; the cascade then reuses the
-previous judge's threshold.
+Return None when no threshold can be certified. The cascade then abstains at that stage.
 
 To add a method (e.g. a baseline such as heuristic lambda = 1 - alpha, or point-estimate
 calibration), write the function here and add it to THRESHOLD_METHODS. Select it with
@@ -70,7 +69,18 @@ def fixed_sequence_testing(phats: torch.Tensor, yhats: torch.Tensor, labels: tor
 
     if selective_util.lambdas.size(-1) == 0:
         return None  # too few instances to test any threshold
-    return float(selective_util.lambda_hat(alpha=alpha))
+    try:
+        threshold = selective_util.lambda_hat(alpha=alpha)
+    except ValueError:
+        # The released root finder has no bracket when every selected
+        # calibration prediction is wrong; such a threshold cannot certify.
+        return None
+    # The released utility returns its largest candidate when even that
+    # candidate fails the risk bound. Accepting it breaks the advertised
+    # guarantee; represent the absence of a certifiable threshold explicitly.
+    if selective_util.selective_risk_upper_bound(threshold) > alpha:
+        return None
+    return float(threshold)
 
 
 THRESHOLD_METHODS = {

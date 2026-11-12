@@ -74,7 +74,13 @@ leakage-safe splits for every policy:
 | `heuristic:<strongest>` | strongest judge | accept when confidence is at least `1 - alpha` |
 | `cascaded_heuristic` | full cascade | apply the same heuristic at every stage |
 | `point_estimate:<judge>` | each judge separately | calibrate on empirical selective risk, without a confidence bound |
+| `selective:<judge>` | each judge separately | fixed-sequence testing with the full error budget; diagnoses the coverage cost of cascading |
 | `cascaded_selective` | full cascade | fixed-sequence testing with the binomial upper bound |
+
+If a calibration split contains no threshold whose upper confidence bound reaches the
+target, that judge abstains on every item at its stage. Reusing another model's threshold
+would be invalid because confidence scales differ across models; forcing the largest tested
+threshold would answer without the stated risk certificate.
 
 When per-run details are available, the same result also contains:
 
@@ -88,8 +94,42 @@ When per-run details are available, the same result also contains:
 
 For every policy, the saved result contains mean and standard deviation of overall
 accuracy, macro source accuracy, coverage, macro source coverage, per-source results, and
-guarantee success rate. The complete per-split records are retained for confidence
-intervals and plots in the report.
+guarantee success rate. Mean accuracy excludes splits where the policy abstains on every
+test item, and `nonempty_split_rate` reports how often a policy answers at least one item.
+The complete per-split records are retained for confidence intervals and plots in the report.
+
+## Coverage experiment: one end-to-end certificate
+
+`global_router_comparison` tests a modified method aimed at the low coverage of the
+per-judge cascade. It uses three disjoint, leakage-safe partitions on every repetition:
+
+1. **Router training** fits one correctness model per cascade stage. Stage features are
+   aggregate confidence, margin, entropy, simulated-annotator vote support and probability
+   dispersion, response-order consistency and probability shift, agreement among models
+   already visited, and earlier-stage confidence summaries.
+2. **Certification** freezes those models and the candidate threshold grid, then applies
+   fixed-sequence tests to the risk of the complete routing policy. The policy receives the
+   full `delta` once because this is one end-to-end claim.
+3. **Testing** measures selective accuracy, macro source accuracy, coverage, macro source
+   coverage, model composition, and how often the target accuracy is met.
+
+The experiment compares `global_raw_confidence`, which routes using the original model
+confidence, with `global_learned_router`, which routes using predicted correctness. Both
+use the same global certification procedure. This separates the gain from avoiding the
+per-stage `delta` split from the gain due to richer VLM reliability signals.
+
+All inputs come from the existing `*.eval_pool.jsonl` files. Evaluation never loads a
+model, changes a judgment cache, or scores an additional example. The result records
+`uses_cached_judgements_only: true` and `new_model_inference_required: false` and is saved
+as `global_router_comparison.json` beside the baseline result.
+
+The result also reports `mean_judges_called` and `early_exit_rate`. These expose whether
+extra coverage comes from useful early routing or simply sending nearly every example to
+the final model.
+
+This is an experimental paper method. Its guarantee applies to the frozen routing policy
+and the group-safe split procedure used here. The final comparison should report both the
+empirical guarantee-success rate and coverage over all 1,000 repetitions.
 
 ## Run
 

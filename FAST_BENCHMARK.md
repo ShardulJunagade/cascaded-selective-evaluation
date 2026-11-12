@@ -1,0 +1,36 @@
+# Fast VLM benchmark
+
+`run_fast_benchmark.py` is the time-focused profile for one GPU. It derives a
+deterministic sample of at most 1,000 rows from the balanced-small export, selecting
+complete prompt/image leakage components and approximately preserving source shares.
+
+The scoring protocol uses three simulated annotators, one demonstration per annotator,
+and both response orderings. This is 6,000 judge requests rather than 27,740 per judge
+in the balanced-small N=5, K=2 profile. Keeping both orderings retains the position-bias
+control used by the main method.
+
+Run inside an existing GPU allocation:
+
+```bash
+python -u run_fast_benchmark.py
+```
+
+The vLLM runtime needs the `ninja` executable for FlashInfer kernel compilation. A
+fresh install through `requirements-open.txt` includes it. Repair an older environment
+once with `python -m pip install --no-cache-dir ninja`.
+
+The runner reuses `data/vlm_v2_small_export`, model downloads, and compilation caches.
+It writes separate judge caches to `result/vlm_v2_fast_1k_n3_k1` and separate results
+under `outputs/vlm_v2_fast_{3judge,4judge}`. Interrupted scoring resumes by sample ID.
+
+After all judge caches exist, the fast 3-judge and 4-judge configs run two CPU-only
+evaluations: the baseline table and the end-to-end global router coverage experiment.
+Running `evaluate` again reads the cached JSONL files and performs no model inference:
+
+```bash
+python -u -m open_cascade evaluate configs/vlm_v2_fast_4judge.yaml
+```
+
+The new result is written to
+`outputs/vlm_v2_fast_4judge/global_router_comparison.json`. For a quick check, append
+`--set evaluate.n_splits=3`; retain the configured 1,000 splits for reported numbers.

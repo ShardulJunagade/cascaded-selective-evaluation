@@ -1,0 +1,33 @@
+# Kimi K2.5 (OpenRouter) as a single VLM judge on the v2 corpus (data/vlm_v2_export/).
+# Needs OPENROUTER_API_KEY in the environment. Smoke-test first:
+#
+#   python test_api_judge.py --judge kimi-k2.5 --n 3
+#   python -m open_cascade score    configs/vlm_api_kimi.yaml
+#   python -m open_cascade evaluate configs/vlm_api_kimi.yaml
+#
+# Cost scales as samples x 2N requests (N = 5 annotators here -> 10 requests per sample).
+# test_api_judge.py prints the measured cost per sample; check it before raising max_samples.
+
+name: vlm_api_kimi
+judges: [kimi-k2.5]
+result_dir: ./result/vlm-api
+
+data:
+  builder: prebuilt               # built by `python get_data.py`; skip prepare-data
+  out_dir: ./data/vlm_v2_export
+  split_subdir: ""                # splits sit directly in out_dir
+  fewshot_name: fewshot.maj.jsonl # Simulated Annotators (Maj.); fewshot.ind.jsonl for Ind.
+
+scoring:
+  splits: [calibration, test]
+  max_samples: 500               # per split: all 500 calibration, first 500 of test
+  chunk_size: 8                  # samples per batch; resume granularity
+  max_fewshot_examples: 1        # K; each example adds an image to every request
+
+cascade:
+  alpha: 0.15
+  delta: 0.1
+  split_delta: true
+
+evaluate:
+  experiments: [cascade, alpha_sweep]

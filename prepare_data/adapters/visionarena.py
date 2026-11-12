@@ -96,6 +96,10 @@ def active_categories(categories: Any) -> Optional[str]:
 class VisionArenaAdapter(Adapter):
     name = "visionarena"
 
+    def available(self) -> bool:
+        """Require actual dataset shards, not a failed snapshot's metadata files."""
+        return bool(self.parquet_files())
+
     def _image(self, row: Dict) -> Optional[Any]:
         """The battle image, wherever this release happens to put it."""
         for field in ("images", "image"):

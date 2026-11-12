@@ -6,7 +6,8 @@ import pytest
 from open_cascade.builders import BUILDERS
 from open_cascade.config import apply_override, config_from_dict, load_config
 from open_cascade.experiments import EXPERIMENTS
-from open_cascade.registry import JUDGE_REGISTRY
+from open_cascade.registry import JUDGE_REGISTRY, VLM_MAX_MODEL_LEN
+from prepare_data.config import CONTEXT_LIMIT_TOKENS
 from open_cascade.thresholds import THRESHOLD_METHODS
 
 CONFIGS = sorted(Path("configs").glob("*.yaml"))
@@ -16,12 +17,22 @@ def test_configs_exist():
     assert CONFIGS, "no configs found -- run pytest from the repo root"
 
 
+def test_vlm_runtime_context_matches_corpus_budget():
+    assert VLM_MAX_MODEL_LEN >= CONTEXT_LIMIT_TOKENS
+    assert all(
+        judge.max_model_len >= CONTEXT_LIMIT_TOKENS
+        for judge in JUDGE_REGISTRY.values()
+        if judge.modality == "vlm" and judge.provider is None  # API judges load no model
+    )
+
+
 @pytest.mark.parametrize("path", CONFIGS, ids=lambda p: p.name)
 def test_config_is_valid(path):
     config = load_config(path)
 
     assert config.name == path.stem, "keep `name` equal to the file name"
-    assert config.data.builder in BUILDERS
+    # "prebuilt" = splits already exported (by get_data.py); prepare-data is skipped
+    assert config.data.builder in BUILDERS or config.data.builder == "prebuilt"
     assert config.cascade.threshold_method in THRESHOLD_METHODS
     for experiment in config.evaluate.experiments:
         assert experiment in EXPERIMENTS

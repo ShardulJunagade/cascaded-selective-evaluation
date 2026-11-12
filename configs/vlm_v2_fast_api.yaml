@@ -1,0 +1,49 @@
+# API judges on the report's benchmark: the same 1,000 stratified pairs, N=3, K=1, both
+# response orderings, and the same two evaluations (baseline_comparison and
+# global_router_comparison) as configs/vlm_v2_fast_4judge.yaml. Cost: 6 requests per pair
+# per judge.
+#
+# Needs OPENROUTER_API_KEY (Kimi) and GEMINI_API_KEY (Gemini).
+#
+#   python get_data.py --limit 1000 --legacy-split 0 \
+#       --out-dir data/vlm_v2_small --export-dir data/vlm_v2_small_export
+#   python cluster/build_fast_profile.py
+#   python -m open_cascade prepare-data configs/vlm_v2_fast_api.yaml
+#   python test_api_judge.py --judge kimi-k2.5 --n 3 \
+#       --split data/vlm_v2_fast_export/eval_pool.jsonl \
+#       --fewshot data/vlm_v2_fast_export/fewshot.jsonl        # cost check first
+#   python -u -m open_cascade score configs/vlm_v2_fast_api.yaml --judge kimi-k2.5
+#   python -u -m open_cascade score configs/vlm_v2_fast_api.yaml --judge gemini-flash
+#   python -u -m open_cascade evaluate configs/vlm_v2_fast_api.yaml
+#
+# result_dir is shared with vlm_v2_fast_4judge.yaml, so copying the cluster's
+# result/vlm_v2_fast_1k_n3_k1/*.eval_pool.jsonl here and listing those judges too (e.g.
+# [granite-vision-3.3-2b, qwen2.5-vl-3b-instruct, phi-3.5-vision-instruct, internvl3-8b,
+# kimi-k2.5, gemini-flash]) evaluates a mixed open + API cascade without re-scoring.
+
+name: vlm_v2_fast_api
+judges: [kimi-k2.5, gemini-flash]   # weakest (cheapest) first
+result_dir: ./result/vlm_v2_fast_1k_n3_k1
+
+data:
+  builder: prepared_export
+  out_dir: ./data/vlm_v2_fast_export
+  flat_files: true
+  n_annotators: 3
+  k_shot: 1
+  calibration_size: 300
+
+scoring:
+  splits: [eval_pool]
+  chunk_size: 8                    # API: small chunks so a crash loses little; resumable
+  max_fewshot_examples: 1
+
+cascade:
+  alpha: 0.15
+  delta: 0.1
+  split_delta: true
+
+evaluate:
+  experiments: [baseline_comparison, global_router_comparison]
+  n_splits: 1000
+  seed: 42

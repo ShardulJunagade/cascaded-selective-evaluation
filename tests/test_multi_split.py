@@ -123,6 +123,7 @@ def test_baseline_comparison_reports_common_metrics():
     assert set(result["policies"]) == {
         "direct:small", "direct:large", "heuristic:large", "cascaded_heuristic",
         "point_estimate:small", "point_estimate:large", "cascaded_selective",
+        "selective:small", "selective:large",
     }
     direct = result["policies"]["direct:large"]
     assert direct["coverage"]["mean"] == 1.0
@@ -162,3 +163,21 @@ def test_judge_setup_baselines_use_cached_runs_and_escalate_inconsistency():
     escalation = result["policies"]["setup:consistency_escalation"]
     assert escalation["coverage"]["mean"] == 1.0
     assert set(escalation["splits"][0]["composition"]) == {"small", "large"}
+
+
+def test_policy_summary_excludes_empty_splits_from_accuracy():
+    from open_cascade.experiments.baselines import _aggregate_policy
+
+    base = {
+        "macro_source_agreement": None,
+        "macro_source_coverage": 0.0,
+        "per_source": {},
+        "met_target": False,
+    }
+    summary = _aggregate_policy([
+        dict(base, agreement=1.0, coverage=0.0),
+        dict(base, agreement=0.75, coverage=0.1),
+    ])
+
+    assert summary["agreement"]["mean"] == 0.75
+    assert summary["nonempty_split_rate"] == 0.5

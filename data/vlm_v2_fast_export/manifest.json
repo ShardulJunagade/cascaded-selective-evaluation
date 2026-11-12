@@ -1,0 +1,19 @@
+{
+  "profile": "fast-stratified",
+  "seed": 42,
+  "target_rows": 1000,
+  "selected_rows": 1000,
+  "source_rows": {
+    "judge_anything": 87,
+    "mm_rlhf": 190,
+    "rlhf_v": 288,
+    "visionarena": 154,
+    "visit_bench": 281
+  },
+  "n_annotators": 3,
+  "k_shot": 1,
+  "response_orderings": 2,
+  "requests_per_judge": 6000,
+  "selection_digest": "6024cd273d829d4cb72299a9343cf841e95e65eabc865efec76005efbc2a0929",
+  "selection_unit": "complete prompt/image leakage component"
+}

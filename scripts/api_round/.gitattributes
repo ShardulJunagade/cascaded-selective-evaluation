@@ -1,0 +1,2 @@
+# Keep LF endings so the scripts run on Linux even from a Windows checkout.
+*.sh text eol=lf

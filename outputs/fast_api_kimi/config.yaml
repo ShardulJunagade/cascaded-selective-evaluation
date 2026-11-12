@@ -1,0 +1,56 @@
+name: fast_api_kimi
+judges:
+- kimi-k2.5
+result_dir: ./result/vlm_v2_fast_1k_n3_k1
+data:
+  builder: prepared_export
+  out_dir: ./data/vlm_v2_fast_export
+  n_annotators: 3
+  k_shot: 1
+  calibration_size: 300
+  seed: 42
+  options: {}
+  split_subdir: split
+  fewshot_name: fewshot.jsonl
+  flat_files: true
+scoring:
+  splits:
+  - eval_pool
+  chunk_size: 8
+  max_samples: null
+  max_fewshot_examples: 1
+  prefix_caching: true
+  resume: true
+  rescore_missing_details: false
+  released_mistral_compat: false
+cascade:
+  alpha: 0.15
+  delta: 0.1
+  split_delta: true
+  threshold_method: fixed_sequence_testing
+evaluate:
+  experiments:
+  - baseline_comparison
+  - global_router_comparison
+  alphas:
+  - 0.3
+  - 0.25
+  - 0.2
+  - 0.15
+  - 0.1
+  - 0.05
+  output_dir: ./outputs
+  n_splits: 1000
+  seed: 42
+  router_train_size: 200
+  router_l2: 0.1
+  router_min_selected: 30
+  router_thresholds: 101
+validation:
+  released_file: ./result/mistral-7b-instruct.calibration.jsonl
+  split: calibration
+  label_agreement_threshold: 0.94
+  correlation_threshold: 0.9
+  human_agreement_tolerance: 0.02
+  strict_confidence: false
+  debug_examples: 8

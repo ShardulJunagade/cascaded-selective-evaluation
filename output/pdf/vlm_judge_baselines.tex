@@ -1,0 +1,584 @@
+\documentclass[10pt]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[a4paper,margin=0.78in,headheight=14pt]{geometry}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,longtable,tabularx,array}
+\usepackage[table]{xcolor}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+\usepackage{url}
+
+\definecolor{navy}{HTML}{17365D}
+\definecolor{blue}{HTML}{2F75B5}
+\definecolor{pale}{HTML}{EAF2F8}
+\definecolor{softgray}{HTML}{F3F4F6}
+\definecolor{good}{HTML}{166534}
+\definecolor{warn}{HTML}{92400E}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=navy,
+  citecolor=blue,
+  urlcolor=blue,
+  pdftitle={VLM-as-a-Judge Baselines: Design, Motivation, and Results},
+  pdfauthor={Ridham Patel}
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{VLM-as-a-Judge Baselines}
+\rhead{Ridham Patel}
+\cfoot{\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt}
+\setlist[itemize]{leftmargin=1.5em,itemsep=2pt,topsep=3pt}
+\setlist[enumerate]{leftmargin=1.7em,itemsep=2pt,topsep=3pt}
+\DeclareRobustCommand{\method}[1]{\nolinkurl{#1}}
+\newcommand{\target}{85\%}
+\newcommand{\deltafull}{0.10}
+\newcommand{\yes}{\textcolor{good}{yes}}
+\newcommand{\no}{\textcolor{warn}{no}}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+\title{\vspace{-1.2cm}\textcolor{navy}{\rule{\linewidth}{1.2pt}}\\[0.45cm]
+\Huge\bfseries VLM-as-a-Judge Baselines\\[0.15cm]
+\Large Design, Motivation, What Each Comparison Proves, and Results\\[0.45cm]
+\textcolor{navy}{\rule{\linewidth}{1.2pt}}}
+\author{Ridham Patel\\\href{mailto:ridham.patel@iitgn.ac.in}{ridham.patel@iitgn.ac.in}}
+\date{October 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This report documents every baseline and comparison policy implemented in the
+multimodal selective-evaluation experiments. The task is pairwise VLM judging:
+given an image, an instruction, and two candidate responses, a judge predicts the
+response preferred by human annotators. The benchmark compares four model families,
+four confidence-selection strategies, four prompt/order reliability setups, a
+consistency-escalation policy, the original stage-wise certified cascade, and two
+end-to-end certified routers. For each comparison, the report states the decision
+rule, why the baseline is necessary, and the hypothesis it tests. It also records the
+corrected 1,000-split four-judge results and identifies implemented policies whose
+post-fix results have not yet been generated.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+\section{Experimental question and protocol}
+
+The central question is not only whether a VLM can agree with humans. It is whether a
+system can answer a useful fraction of comparisons while guaranteeing a user-selected
+level of human agreement. The experiment sets the maximum selective error to
+$\alpha=0.15$, so the accuracy target is $1-\alpha=\target$. The certificate uses
+$\delta=\deltafull$, corresponding to a target confidence level of $1-\delta=90\%$.
+
+The fast benchmark contains 1,000 approximately source-stratified, image-grounded
+preference pairs. Each scored example contains three simulated-annotator prompts, one
+few-shot demonstration per prompt, and both response orderings. The judge chain is:
+
+\begin{center}
+\fcolorbox{navy}{pale}{\parbox{0.92\linewidth}{\centering
+Granite Vision 3.3 2B $\rightarrow$ Qwen2.5-VL 3B Instruct $\rightarrow$
+Phi-3.5 Vision Instruct $\rightarrow$ InternVL3 8B}}
+\end{center}
+
+The chain deliberately spans different model families. This reduces the chance that a
+result is merely a within-family scaling artifact and lets disagreement between model
+families serve as a reliability signal. All policies operate on the same cached model
+probabilities. Re-running policy evaluation requires no VLM inference.
+
+\subsection{Metrics}
+
+Let $A$ be the event that a policy answers and let $\widehat{Y}$ and $Y$ denote the
+policy prediction and human label. The primary selective metric is
+\[
+  \operatorname{Accuracy}=\Pr(\widehat{Y}=Y\mid A),
+\]
+which is undefined for an empty selection and is therefore averaged only over nonempty
+test splits. Coverage is $\Pr(A)$. Macro accuracy first computes accuracy within each
+data source and then gives every source equal weight. Nonempty rate is the fraction of
+repeated splits that answer at least one example. Target success is the fraction of all
+splits that both answer and attain at least \target{} test accuracy. For heuristic and
+point-estimate methods, ``success'' is empirical and is not a formal certificate.
+
+\section{Why this baseline suite is necessary}
+
+A single accuracy comparison cannot locate the source of improvement. The suite is
+organized around five distinct questions:
+
+\begin{longtable}{@{}p{0.20\linewidth}p{0.35\linewidth}p{0.38\linewidth}@{}}
+\toprule
+\textbf{Axis} & \textbf{Required comparison} & \textbf{What it identifies} \\
+\midrule
+\endhead
+Judge strength & Direct use of every model & Whether gains come from a stronger judge rather than selection or routing. \\
+Confidence selection & Heuristic, point estimate, and certified selectors & Whether confidence ranks correctness, and what finite-sample certification costs in coverage. \\
+Cascading & Single-judge selectors versus sequential policies & Whether multiple model families add coverage beyond the strongest judge and what escalation costs. \\
+Prompt reliability & Single prompt, order averaging, voting, and consistency filtering & Whether prompt variation and position bias explain confidence and accuracy. \\
+Certificate scope & Stage-wise cascade versus global routers & Whether coverage is lost by protecting several stage claims instead of the deployed policy's final risk. \\
+\bottomrule
+\end{longtable}
+
+The direct pairwise protocol follows multimodal judge and reward-model benchmarks that
+measure agreement with human preferences \cite{chen2024mllmjudge,yasunaga2025mmrb,li2024vlreward}.
+The selective and cascaded comparisons follow \emph{Trust or Escalate}
+\cite{jung2024trust}. Prompt/order ablations operationalize reliability mechanisms used
+in multimodal reward benchmarking and repeated judging. They are labeled as operational
+analogues when the cached deterministic runs do not exactly reproduce a paper's original
+stochastic protocol.
+
+\section{Model-strength baselines}
+
+\subsection[Direct judge]{Direct judge: \method{direct:<judge>}}
+
+Each of the four direct baselines chooses $\arg\max_y p_j(y\mid x)$ and never abstains.
+There is one instance for each model family; Appendix~A lists every exact identifier.
+
+\textbf{Motivation.} Pairwise accuracy at 100\% coverage is the standard
+VLM-as-a-judge comparison. It establishes the raw ability of each family and provides
+the denominator against which abstention gains are judged.
+
+\textbf{What it proves.} If a selective policy improves conditional accuracy, the direct
+rows show how much is attributable to abstaining. Comparing the four direct rows also
+tests whether the final judge is genuinely stronger. Direct baselines cannot demonstrate
+risk control because they make no coverage-dependent decision and use no certificate.
+
+\section{Confidence and selective-risk baselines}
+
+\subsection[Strongest-judge heuristic]{Strongest-judge heuristic: \method{heuristic:internvl3-8b}}
+
+The strongest judge answers when its cached confidence is at least $1-\alpha=0.85$.
+
+\textbf{Motivation.} This is the simplest deployment rule a practitioner might use if
+model probabilities were calibrated. It has no learned threshold and no statistical
+bound.
+
+\textbf{What it proves.} It tests whether confidence has useful ranking power and gives
+an empirical upper reference for coverage. A high success rate does not turn it into a
+certificate; it may fail under another calibration draw or distribution.
+
+\subsection[Cascaded heuristic]{Cascaded heuristic: \method{cascaded_heuristic}}
+
+The same fixed threshold, $0.85$, is applied sequentially. The first judge above the
+threshold answers; otherwise the item is escalated.
+
+\textbf{Motivation.} This is the non-certified counterpart of a cascade. It tests whether
+sequential access to several families adds coverage beyond the strongest judge.
+
+\textbf{What it proves.} Its difference from the strongest-judge heuristic isolates the
+empirical value of escalation. Its difference from the certified cascade quantifies the
+coverage price of finite-sample guarantees.
+
+\subsection[Point-estimate calibration]{Point-estimate calibration: \method{point_estimate:<judge>}}
+
+For each judge, the method chooses the least restrictive threshold whose empirical
+calibration error is at most $\alpha$, requiring at least 30 selected calibration
+examples. It does not add an upper confidence bound. Four instances are evaluated, one
+for each model family.
+
+\textbf{Motivation.} This is a calibrated but non-certified comparator from the selective
+evaluation design. It separates threshold learning from statistical uncertainty.
+
+\textbf{What it proves.} The gap between point-estimate and certified selection measures
+the coverage cost of accounting for finite calibration size. Failure on held-out splits
+shows why empirical calibration error alone is insufficient for a guarantee.
+
+\subsection[Certified single judge]{Certified single judge: \method{selective:<judge>}}
+
+Each judge independently uses fixed-sequence testing and the full $\delta=0.1$ to find a
+threshold whose one-sided exact binomial upper risk bound is at most $\alpha$. There is one
+instance for each model family; Appendix~A lists every exact identifier.
+
+\textbf{Motivation.} A single certified judge is the essential control for the cascade.
+It receives the full failure budget and does not benefit from other models.
+
+\textbf{What it proves.} It separates gains from cascading from losses caused by splitting
+$\delta$ across stages. These policies are implemented in the current code, but they were
+added after the captured result file was generated. Their rows are therefore marked
+``N/R'' rather than filled with inferred values. Re-running CPU evaluation will produce
+them from the existing caches.
+
+\subsection[Original certified cascade]{Original certified cascade: \method{cascaded_selective}}
+
+At stage $j$, fixed-sequence testing certifies a confidence threshold on the residual
+examples rejected by earlier stages. With four judges, the implementation assigns
+$\delta_j=\delta/4=0.025$ to each stage. If every stage-specific risk is at most $\alpha$,
+the final risk is at most $\alpha$ with probability at least $1-\delta$ by the union bound.
+
+\textbf{Motivation.} This is the original proposed method and the principal comparator
+for the new global certificate \cite{jung2024trust}.
+
+\textbf{What it proves.} It tests whether a formally protected cascade can meet the human
+agreement target. Its coverage reveals the conservatism of simultaneously certifying
+multiple stages on shrinking residual sets.
+
+\section{Prompt and response-order reliability baselines}
+
+All four setup policies are instantiated separately for Granite, Qwen, Phi, and InternVL.
+They are post-hoc transformations of cached per-prompt, per-order probabilities, so their
+comparison requires no new model calls.
+
+\subsection[Vanilla single prompt]{Vanilla single prompt: \method{setup:vanilla_single:<judge>}}
+
+Use the first simulated-annotator prompt and the original response order.
+
+\textbf{Motivation.} This reproduces the common fixed-prompt judge setup used in basic
+pairwise evaluation \cite{chen2024mllmjudge,yasunaga2025mmrb}.
+
+\textbf{What it proves.} It establishes how much the full prompt/order ensemble gains over
+one ordinary judge call. It also exposes position sensitivity because it never reverses
+the candidates.
+
+\subsection[Response-order averaging]{Response-order averaging: \method{setup:position_swap:<judge>}}
+
+Evaluate the first prompt in both response orders, map both outputs back to the original
+candidate identities, average their probabilities, and always answer.
+
+\textbf{Motivation.} Pairwise judges can prefer the first or second slot. Forward/reverse
+evaluation is used in multimodal reward benchmarking to measure and reduce this bias
+\cite{hu2025mmrb2}.
+
+\textbf{What it proves.} Improvement over the vanilla row measures the benefit of explicit
+position control. Because it retains full coverage, it does not confound the comparison
+with abstention.
+
+\subsection[Prompt/order vote]{Prompt/order vote: \method{setup:prompt_order_vote:<judge>}}
+
+Take a majority vote across every cached simulated-annotator prompt and both response
+orders.
+
+\textbf{Motivation.} Repeated judgments are a standard way to reduce prompt variance;
+VLRewardBench studies inference-time scaling for generative reward models
+\cite{li2024vlreward}.
+
+\textbf{What it proves.} It tests whether diversity across prompts and response orders
+provides a robust ensemble signal. This implementation is a deterministic analogue over
+cached runs, not a reproduction of a stochastic five-call protocol.
+
+\subsection[Swap consistency]{Swap consistency: \method{setup:swap_consistency:<judge>}}
+
+Answer only when the first prompt selects the same original response in both response
+orders; otherwise abstain. For consistent pairs, average the two probability vectors.
+
+\textbf{Motivation.} Self-consistency can serve as a label-free uncertainty signal and
+directly targets position-instability failures.
+
+\textbf{What it proves.} Its accuracy/coverage curve tests whether order agreement
+identifies reliable examples. Comparing it with position averaging isolates the effect of
+filtering inconsistent items rather than merely averaging them.
+
+\subsection[Consistency escalation]{Consistency escalation: \method{setup:consistency_escalation}}
+
+At each non-final stage, accept only swap-consistent judgments and route inconsistent
+examples onward. The final judge resolves every remaining pair using its full cached
+ensemble.
+
+\textbf{Motivation.} Selective test-time evaluation allocates extra computation to
+self-inconsistent cases \cite{jwa2026lwe}. This policy tests that reusable routing idea
+without implementing an evolving meta-prompt.
+
+\textbf{What it proves.} It tests whether consistency alone is sufficient for economical
+escalation. It is an operational analogue of the routing heuristic, not a full
+implementation of Learning While Evaluating.
+
+\section{End-to-end certified routing}
+
+\subsection{Why change the scope of certification?}
+
+The stage-wise guarantee is valid, but it controls a stronger set of events than the
+deployed system requires. It separately requires
+\[
+R_j=\Pr(\widehat{Y}_j\ne Y\mid\text{reached and accepted at stage }j)\leq\alpha
+\]
+for every stage. The union bound protects all $M$ claims with
+$\sum_j\delta_j=\delta$. This is conservative because each test uses a smaller $\delta_j$,
+later stages receive fewer calibration examples, and every stage must meet $\alpha$ even
+though final risk is a coverage-weighted mixture of stage errors.
+
+The global experiment freezes the complete policy $\pi_\tau$ and directly certifies
+\[
+R(\pi_\tau)=\Pr(\widehat{Y}_{\pi_\tau}\ne Y\mid\pi_\tau\text{ answers})\leq\alpha.
+\]
+One policy-level claim can use the full $\delta$. To prevent label leakage, every
+repetition uses disjoint group-safe router-training, certification, and test partitions.
+Threshold candidates are fixed from router-training scores before certification labels are
+examined.
+
+\subsection[Global raw confidence]{Global raw confidence: \method{global_raw_confidence}}
+
+Route using each stage's cached maximum class probability, freeze a candidate threshold
+grid from the router-training split, and certify the final routing policy once.
+
+\textbf{Motivation.} This is the minimal end-to-end modification. It changes certificate
+scope while keeping the original confidence signal unchanged.
+
+\textbf{What it proves.} Its comparison with \method{cascaded_selective} isolates the
+benefit of a policy-level certificate. Its comparison with the learned router isolates
+whether richer reliability features help beyond raw confidence.
+
+\subsection[Global learned router]{Global learned router: \method{global_learned_router}}
+
+Fit one regularized logistic correctness model per stage on the independent router split.
+Features are confidence, margin, entropy, simulated-annotator vote support, probability
+dispersion, response-order consistency and probability shift, agreement/unanimity among
+models visited so far, and previous-confidence summaries. The learned score is then frozen
+and certified exactly like the raw score.
+
+\textbf{Motivation.} VLM reliability may be expressed by disagreement and response-order
+instability even when maximum probability is poorly calibrated.
+
+\textbf{What it proves.} It tests whether cached multimodal reliability signals can improve
+routing without new inference. A loss against raw confidence is informative evidence that
+the 11-feature model has too much variance for the approximately 200-example router split.
+
+\section{Complete four-judge results}
+
+Table~\ref{tab:baseline-results} reproduces the corrected post-fix baseline output. Accuracy
+excludes empty selections. The four certified single-judge policies are present in the
+current experiment registry but absent from the captured run, so no numbers are imputed.
+
+\footnotesize
+\begin{longtable}{@{}L{0.50\linewidth}rrrrr@{}}
+\caption{Four-judge baseline results over 1,000 repeated group-safe splits. Values are
+fractions. N/R means implemented but not reported in the captured run.}\label{tab:baseline-results}\\
+\toprule
+\textbf{Policy} & \textbf{Acc.} & \textbf{Macro} & \textbf{Cov.} & \textbf{Nonempty} & \textbf{Success} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Policy} & \textbf{Acc.} & \textbf{Macro} & \textbf{Cov.} & \textbf{Nonempty} & \textbf{Success} \\
+\midrule
+\endhead
+\method{direct:granite-vision-3.3-2b} & .5909 & .5971 & 1.0000 & 1.0000 & .0000 \\
+\method{direct:qwen2.5-vl-3b-instruct} & .5762 & .5988 & 1.0000 & 1.0000 & .0000 \\
+\method{direct:phi-3.5-vision-instruct} & .5824 & .6115 & 1.0000 & 1.0000 & .0000 \\
+\method{direct:internvl3-8b} & .7051 & .7325 & 1.0000 & 1.0000 & .0000 \\
+\rowcolor{pale}\method{heuristic:internvl3-8b} & .8872 & .8573 & .3380 & 1.0000 & .9990 \\
+\rowcolor{pale}\method{cascaded_heuristic} & .8695 & .8477 & .3611 & 1.0000 & .9660 \\
+\method{point_estimate:granite-vision-3.3-2b} & .6816 & .6931 & .0099 & .0580 & .0000 \\
+\method{point_estimate:qwen2.5-vl-3b-instruct} & .8347 & .7792 & .1320 & .8650 & .3250 \\
+\method{point_estimate:phi-3.5-vision-instruct} & .7264 & .7102 & .0240 & .1770 & .0000 \\
+\method{point_estimate:internvl3-8b} & .8477 & .8368 & .4274 & 1.0000 & .4570 \\
+\method{selective:granite-vision-3.3-2b} & N/R & N/R & N/R & N/R & N/R \\
+\method{selective:qwen2.5-vl-3b-instruct} & N/R & N/R & N/R & N/R & N/R \\
+\method{selective:phi-3.5-vision-instruct} & N/R & N/R & N/R & N/R & N/R \\
+\method{selective:internvl3-8b} & N/R & N/R & N/R & N/R & N/R \\
+\rowcolor{pale}\method{cascaded_selective} & .9362 & .8793 & .1306 & .6680 & .6370 \\
+\method{setup:vanilla_single:granite-vision-3.3-2b} & .4998 & .5016 & 1.0000 & 1.0000 & .0000 \\
+\method{setup:position_swap:granite-vision-3.3-2b} & .6125 & .6394 & 1.0000 & 1.0000 & .0000 \\
+\method{setup:prompt_order_vote:granite-vision-3.3-2b} & .5784 & .5953 & 1.0000 & 1.0000 & .0000 \\
+\method{setup:swap_consistency:granite-vision-3.3-2b} & .7640 & .8096 & .0681 & 1.0000 & .0080 \\
+\method{setup:vanilla_single:qwen2.5-vl-3b-instruct} & .5830 & .6045 & 1.0000 & 1.0000 & .0000 \\
+\method{setup:position_swap:qwen2.5-vl-3b-instruct} & .5812 & .6060 & 1.0000 & 1.0000 & .0000 \\
+\method{setup:prompt_order_vote:qwen2.5-vl-3b-instruct} & .5883 & .6072 & 1.0000 & 1.0000 & .0000 \\
+\method{setup:swap_consistency:qwen2.5-vl-3b-instruct} & .6606 & .6225 & .4325 & 1.0000 & .0000 \\
+\method{setup:vanilla_single:phi-3.5-vision-instruct} & .5641 & .5899 & 1.0000 & 1.0000 & .0000 \\
+\method{setup:position_swap:phi-3.5-vision-instruct} & .5709 & .6025 & 1.0000 & 1.0000 & .0000 \\
+\method{setup:prompt_order_vote:phi-3.5-vision-instruct} & .5772 & .6012 & 1.0000 & 1.0000 & .0000 \\
+\method{setup:swap_consistency:phi-3.5-vision-instruct} & .6379 & .6628 & .4940 & 1.0000 & .0000 \\
+\method{setup:vanilla_single:internvl3-8b} & .6631 & .6949 & 1.0000 & 1.0000 & .0000 \\
+\method{setup:position_swap:internvl3-8b} & .7030 & .7289 & 1.0000 & 1.0000 & .0000 \\
+\method{setup:prompt_order_vote:internvl3-8b} & .6960 & .7230 & 1.0000 & 1.0000 & .0000 \\
+\method{setup:swap_consistency:internvl3-8b} & .7729 & .7830 & .6522 & 1.0000 & .0000 \\
+\method{setup:consistency_escalation} & .6150 & .6430 & 1.0000 & 1.0000 & .0000 \\
+\bottomrule
+\end{longtable}
+\normalsize
+
+The two global policies use a three-way split (approximately 200 router-training, 300
+certification, and 500 test examples), whereas the baseline table uses approximately 300
+calibration and 700 test examples. The global policies are paired with each other on the
+same splits; comparisons with Table~\ref{tab:baseline-results} are repeated-split aggregate
+comparisons rather than paired test-set differences.
+
+\begin{table}[ht]
+\centering
+\caption{End-to-end certified routing over 1,000 repeated splits.}
+\begin{tabular}{@{}lrrrrrrr@{}}
+\toprule
+\textbf{Method} & \textbf{Acc.} & \textbf{Macro} & \textbf{Cov.} & \textbf{Calls} & \textbf{Nonempty} & \textbf{Certified} & \textbf{Success} \\
+\midrule
+\method{global_raw_confidence} & .9108 & .8658 & .2520 & 3.891 & .9600 & .9600 & .8650 \\
+\method{global_learned_router} & .9042 & .8604 & .1543 & 3.909 & .6180 & .6180 & .5370 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{What the results establish}
+
+\begin{enumerate}
+  \item \textbf{Judge strength matters, but is insufficient.} InternVL is the strongest
+  direct model at 70.51\%, still well below the 85\% target. A stronger final model alone
+  does not solve reliable judging.
+
+  \item \textbf{Confidence is useful.} The InternVL heuristic reaches 88.72\% accuracy at
+  33.80\% coverage. The point-estimate version reaches greater coverage (42.74\%) but only
+  84.77\% mean accuracy and succeeds on 45.70\% of splits. This is direct evidence that
+  uncertainty in threshold calibration matters.
+
+  \item \textbf{Position control helps unevenly.} Granite improves from 49.98\% with one
+  prompt/order to 61.25\% after order averaging. InternVL improves from 66.31\% to 70.30\%.
+  Qwen and Phi change little. Position bias is therefore model dependent.
+
+  \item \textbf{Consistency is selective but not sufficient.} Swap consistency raises
+  conditional accuracy for every judge, but only Granite attains a small nonzero target
+  success rate. The full-coverage consistency-escalation analogue reaches 61.50\%, showing
+  that consistency alone is a weak routing signal in this chain.
+
+  \item \textbf{Stage-wise certification is accurate but conservative.} The original
+  cascade reaches 93.62\% accuracy, 8.62 points above target, at 13.06\% coverage and a
+  66.80\% nonempty rate. This large unused accuracy margin motivates a less conservative
+  policy-level certificate.
+
+  \item \textbf{Global certification nearly doubles coverage.} Raw-confidence global
+  certification raises coverage from 13.06\% to 25.20\% (1.93$\times$) while maintaining
+  91.08\% accuracy. Among certified splits, target success is
+  $0.865/0.960=90.1\%$, matching the intended 90\% confidence level empirically.
+
+  \item \textbf{The rich router is a negative ablation.} The learned router has lower
+  coverage and certifies fewer splits than raw confidence. With only about 200 router
+  examples, the 11-feature correctness model likely has too much variance.
+
+  \item \textbf{Compute efficiency remains unresolved.} The raw global policy calls 3.891
+  of four judges on average. Its main benefit is coverage from certificate scope, not early
+  exit. Future routing work should report judge calls alongside accuracy and coverage.
+\end{enumerate}
+
+\section{Completeness and scope boundary}
+
+The experiment registry contains 34 distinct policy instances:
+
+\begin{center}
+\begin{tabular}{@{}lr@{}}
+\toprule
+\textbf{Policy family} & \textbf{Instances} \\
+\midrule
+Direct judges & 4 \\
+Strongest-judge heuristic & 1 \\
+Cascaded heuristic & 1 \\
+Point-estimate single judges & 4 \\
+Certified single judges & 4 \\
+Original certified cascade & 1 \\
+Vanilla single-prompt setups & 4 \\
+Position-swap setups & 4 \\
+Prompt/order-vote setups & 4 \\
+Swap-consistency setups & 4 \\
+Consistency escalation & 1 \\
+Global raw-confidence router & 1 \\
+Global learned router & 1 \\
+\midrule
+\textbf{Total} & \textbf{34} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Prometheus-Vision \cite{lee2024prometheusvision} and LLaVA-Critic
+\cite{xiong2024llavacritic} are relevant specialist evaluator models, but they are not rows
+in the current cached experiment. Prometheus-Vision is trained for rubric-conditioned
+pointwise scoring, whose primary metric is correlation; adapting it to pairwise preference
+would change the protocol. LLaVA-Critic supports pairwise ranking, but a faithful comparison
+requires its official generative prompt/parser and new cached inference. Neither is silently
+presented as an implemented baseline. They should be added as separate model baselines only
+after their native protocols are validated on the same examples.
+
+Multimodal RewardBench, MMRB2, MLLM-as-a-Judge, and VLRewardBench motivate the pairwise
+metrics and prompt/order controls; they are benchmark or setup references rather than
+additional model rows. Learning While Evaluating motivates the consistency-escalation
+heuristic; the current baseline does not claim its evolving meta-prompt mechanism.
+
+\section{Reproduction and reporting checklist}
+
+The complete cached-only evaluation command is:
+\begin{verbatim}
+python -u -m open_cascade evaluate configs/vlm_v2_fast_4judge.yaml
+\end{verbatim}
+
+For a paper table:
+\begin{itemize}
+  \item rerun the current code to populate the four \method{selective:<judge>} rows;
+  \item retain 1,000 group-safe repetitions and report mean plus standard deviation;
+  \item report accuracy, macro accuracy, coverage, macro coverage, nonempty rate, and target success;
+  \item for global routing, also report certified rate, mean judge calls, early-exit rate, and model composition;
+  \item state that raw/learned global comparisons are paired, while the original/global tables use different test sizes;
+  \item label heuristic and point-estimate success as empirical rather than guaranteed;
+  \item keep empty selections out of conditional-accuracy averages.
+\end{itemize}
+
+\appendix
+\section{Exact implemented policy identifiers}
+
+\footnotesize
+\begin{longtable}{@{}L{0.23\linewidth}L{0.71\linewidth}@{}}
+\toprule
+\textbf{Family} & \textbf{Identifiers} \\
+\midrule
+\endhead
+Direct & \method{direct:granite-vision-3.3-2b}; \method{direct:qwen2.5-vl-3b-instruct}; \method{direct:phi-3.5-vision-instruct}; \method{direct:internvl3-8b}. \\
+Heuristic & \method{heuristic:internvl3-8b}; \method{cascaded_heuristic}. \\
+Point estimate & \method{point_estimate:granite-vision-3.3-2b}; \method{point_estimate:qwen2.5-vl-3b-instruct}; \method{point_estimate:phi-3.5-vision-instruct}; \method{point_estimate:internvl3-8b}. \\
+Certified single judge & \method{selective:granite-vision-3.3-2b}; \method{selective:qwen2.5-vl-3b-instruct}; \method{selective:phi-3.5-vision-instruct}; \method{selective:internvl3-8b}. \\
+Certified cascade & \method{cascaded_selective}. \\
+Vanilla setup & \method{setup:vanilla_single:granite-vision-3.3-2b}; \method{setup:vanilla_single:qwen2.5-vl-3b-instruct}; \method{setup:vanilla_single:phi-3.5-vision-instruct}; \method{setup:vanilla_single:internvl3-8b}. \\
+Position swap & \method{setup:position_swap:granite-vision-3.3-2b}; \method{setup:position_swap:qwen2.5-vl-3b-instruct}; \method{setup:position_swap:phi-3.5-vision-instruct}; \method{setup:position_swap:internvl3-8b}. \\
+Prompt/order vote & \method{setup:prompt_order_vote:granite-vision-3.3-2b}; \method{setup:prompt_order_vote:qwen2.5-vl-3b-instruct}; \method{setup:prompt_order_vote:phi-3.5-vision-instruct}; \method{setup:prompt_order_vote:internvl3-8b}. \\
+Swap consistency & \method{setup:swap_consistency:granite-vision-3.3-2b}; \method{setup:swap_consistency:qwen2.5-vl-3b-instruct}; \method{setup:swap_consistency:phi-3.5-vision-instruct}; \method{setup:swap_consistency:internvl3-8b}. \\
+Consistency escalation & \method{setup:consistency_escalation}. \\
+Global routers & \method{global_raw_confidence}; \method{global_learned_router}. \\
+\bottomrule
+\end{longtable}
+\normalsize
+
+\begin{thebibliography}{99}
+
+\bibitem{jung2024trust}
+J. Jung, F. Brahman, and Y. Choi.
+\newblock Trust or Escalate: LLM Judges with Provable Guarantees for Human Agreement.
+\newblock \emph{arXiv:2407.18370}, 2024.
+
+\bibitem{chen2024mllmjudge}
+D. Chen et al.
+\newblock MLLM-as-a-Judge: Assessing Multimodal LLM-as-a-Judge with Vision-Language Benchmark.
+\newblock \emph{arXiv:2402.04788}, 2024.
+
+\bibitem{yasunaga2025mmrb}
+M. Yasunaga, L. Zettlemoyer, and M. Ghazvininejad.
+\newblock Multimodal RewardBench: Holistic Evaluation of Reward Models for Vision Language Models.
+\newblock \emph{arXiv:2502.14191}, 2025.
+
+\bibitem{li2024vlreward}
+L. Li et al.
+\newblock VLRewardBench: A Challenging Benchmark for Vision-Language Generative Reward Models.
+\newblock \emph{arXiv:2411.17451}, 2024.
+
+\bibitem{hu2025mmrb2}
+Y. Hu, R. Askari-Hemmat, M. Hall, E. Dinan, L. Zettlemoyer, and M. Ghazvininejad.
+\newblock Multimodal RewardBench 2: Evaluating Omni Reward Models for Interleaved Text and Image.
+\newblock \emph{arXiv:2512.16899}, 2025.
+
+\bibitem{lee2024prometheusvision}
+S. Lee, S. Kim, S. H. Park, G. Kim, and M. Seo.
+\newblock Prometheus-Vision: Vision-Language Model as a Judge for Fine-Grained Evaluation.
+\newblock \emph{arXiv:2401.06591}, 2024.
+
+\bibitem{xiong2024llavacritic}
+T. Xiong et al.
+\newblock LLaVA-Critic: Learning to Evaluate Multimodal Models.
+\newblock \emph{arXiv:2410.02712}, 2024.
+
+\bibitem{jwa2026lwe}
+S. Jwa, D. Ahn, R. Kim, D. Kang, and J. Choi.
+\newblock Becoming Experienced Judges: Selective Test-Time Learning for Evaluators.
+\newblock In \emph{Proceedings of EACL}, pages 697--721, 2026.
+
+\end{thebibliography}
+
+\end{document}

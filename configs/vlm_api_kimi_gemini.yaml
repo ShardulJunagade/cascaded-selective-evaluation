@@ -1,0 +1,34 @@
+# Two-judge API cascade: Kimi K2.5 (OpenRouter) -> Gemini Flash (Google AI Studio).
+# Needs OPENROUTER_API_KEY and GEMINI_API_KEY. Without a Google key, swap the second judge
+# for gemini-flash-openrouter (same model, billed through OpenRouter).
+#
+# Judgements are cached per judge, so Kimi results from configs/vlm_api_kimi.yaml are
+# reused (same result_dir and splits); only Gemini gets scored.
+#
+#   python test_api_judge.py --judge gemini-flash --n 3
+#   python -m open_cascade score    configs/vlm_api_kimi_gemini.yaml
+#   python -m open_cascade evaluate configs/vlm_api_kimi_gemini.yaml
+
+name: vlm_api_kimi_gemini
+judges: [kimi-k2.5, gemini-flash]   # weakest (cheapest) first
+result_dir: ./result/vlm-api
+
+data:
+  builder: prebuilt
+  out_dir: ./data/vlm_v2_export
+  split_subdir: ""
+  fewshot_name: fewshot.maj.jsonl
+
+scoring:
+  splits: [calibration, test]
+  max_samples: 500
+  chunk_size: 8
+  max_fewshot_examples: 1
+
+cascade:
+  alpha: 0.15
+  delta: 0.1
+  split_delta: true
+
+evaluate:
+  experiments: [cascade, alpha_sweep]

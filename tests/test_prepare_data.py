@@ -10,6 +10,9 @@ file.
 
 from __future__ import annotations
 
+import sys
+from types import SimpleNamespace
+
 import pytest
 
 from prepare_data import stages
@@ -470,6 +473,56 @@ def test_export_carries_provenance_for_the_bias_slices():
     instance = to_instance(make_record("u"))
     for key in ("uid", "dataset", "group_id", "label_origin", "swapped", "is_tie"):
         assert key in instance["source"]
+
+
+def test_visionarena_failed_snapshot_metadata_is_not_available(tmp_path, monkeypatch):
+    """A 403 can leave README/log files behind; those are not a usable dataset."""
+    from prepare_data.adapters.visionarena import VisionArenaAdapter
+    from prepare_data.media import MediaStore
+
+    adapter = VisionArenaAdapter(MediaStore(), Funnel())
+    monkeypatch.setattr(adapter, "raw", tmp_path)
+    (tmp_path / "hf").mkdir()
+    (tmp_path / "hf" / "README.md").write_text("gated", encoding="utf-8")
+    (tmp_path / "download_log.json").write_text('{"status": "failed"}', encoding="utf-8")
+    assert adapter.available() is False
+
+    shard = tmp_path / "hf" / "data" / "train.parquet"
+    shard.parent.mkdir()
+    shard.write_bytes(b"parquet")
+    assert adapter.available() is True
+
+
+def test_capped_hf_load_streams_and_stops_at_limit(tmp_path, monkeypatch):
+    from prepare_data.adapters.visionarena import VisionArenaAdapter
+    from prepare_data.media import MediaStore
+
+    calls = {}
+
+    class FakeStream:
+        def shuffle(self, *, seed, buffer_size):
+            calls.update(seed=seed, buffer_size=buffer_size)
+            return self
+
+        def take(self, limit):
+            calls["limit"] = limit
+            return iter([{"row": index} for index in range(limit)])
+
+    def load_dataset(*args, **kwargs):
+        calls.update(args=args, kwargs=kwargs)
+        return FakeStream()
+
+    monkeypatch.setitem(sys.modules, "datasets", SimpleNamespace(load_dataset=load_dataset))
+    adapter = VisionArenaAdapter(MediaStore(), Funnel(), limit=3, seed=17)
+    monkeypatch.setattr(adapter, "raw", tmp_path)
+    shard = tmp_path / "hf" / "data" / "train.parquet"
+    shard.parent.mkdir(parents=True)
+    shard.write_bytes(b"parquet")
+
+    assert adapter.load_hf() == [{"row": 0}, {"row": 1}, {"row": 2}]
+    assert calls["kwargs"]["streaming"] is True
+    assert calls["limit"] == 3
+    assert calls["seed"] == 17
 
 
 # --------------------------------------------------------------------------

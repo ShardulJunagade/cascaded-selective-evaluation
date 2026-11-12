@@ -79,6 +79,10 @@ def parse_args():
                              "protocol: a single split cannot show whether the (1-delta) "
                              "guarantee holds, so the evaluation must draw many random "
                              "splits from eval_pool.jsonl. Pass 0 to skip it.")
+    parser.add_argument("--out-dir", default="data/vlm_v2",
+                        help="canonical-record output directory")
+    parser.add_argument("--export-dir", default="data/vlm_v2_export",
+                        help="judge-ready export directory")
     parser.add_argument("build_args", nargs=REMAINDER,
                         help="extra arguments passed through to prepare_data.run")
     return parser.parse_args()
@@ -97,7 +101,8 @@ def main() -> int:
             ["-m", "prepare_data.inspect_raw", "--source", *sources])
 
     build = ["-m", "prepare_data.run", "--source", *sources,
-             "--k", str(args.k), "--n", str(args.n), "--tau", str(args.tau)]
+             "--k", str(args.k), "--n", str(args.n), "--tau", str(args.tau),
+             "--out-dir", args.out_dir, "--export-dir", args.export_dir]
     if args.legacy_split:
         build += ["--legacy-split", str(args.legacy_split)]
     if args.limit is not None:
@@ -105,16 +110,17 @@ def main() -> int:
     build += [a for a in args.build_args if a != "--"]
     run("2/3  Building the corpus", build)
 
-    run("3/3  Verifying the export", ["-m", "prepare_data.verify_export"])
+    run("3/3  Verifying the export",
+        ["-m", "prepare_data.verify_export", "--dir", args.export_dir])
 
     print("\n" + "=" * 70)
-    print("Done. The corpus is in data/vlm_v2_export/:")
+    print(f"Done. The corpus is in {args.export_dir}/:")
     print("  eval_pool.jsonl      draw calibration/test splits from this")
     print("  dev.jsonl            hyperparameter selection only (K, N, tau)")
     print("  ties.jsonl           unlabelled; for the confidence -> 0.5 test")
     print("  fewshot.maj.jsonl    Simulated Annotators (Maj.)")
     print("  fewshot.ind.jsonl    Simulated Annotators (Ind.)")
-    print("\nReports: reports/bias_tables.md, data/vlm_v2/manifest.json")
+    print(f"\nReports: reports/bias_tables.md, {args.out_dir}/manifest.json")
     print("=" * 70)
     return 0
 
